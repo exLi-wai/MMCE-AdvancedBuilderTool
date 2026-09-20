@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "S",
+    "S"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "item": "mmce_advanced_builder_tool:advanced_builder_tool"
+  }
+}

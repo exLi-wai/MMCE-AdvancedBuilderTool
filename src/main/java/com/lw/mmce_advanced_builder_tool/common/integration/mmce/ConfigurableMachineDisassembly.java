@@ -1,0 +1,271 @@
+package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+
+import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.util.MessageLimiter;
+import com.lw.mmce_advanced_builder_tool.common.util.Mods;
+import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Blocks;
+import net.minecraft.init.SoundEvents;
+import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.SoundCategory;
+import net.minecraft.util.Tuple;
+import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.fluids.FluidStack;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
+
+    private static final int MAX_REPORTS = 8;
+
+    private final World world;
+    private final BlockPos ctrlPos;
+    private final EntityPlayer player;
+    private final DisassemblyIngredient.Plan plan;
+    private final boolean useAeItems;
+    private final boolean useAeFluids;
+    private final int tickInterval;
+    private final int operationsPerTick;
+    private final MessageLimiter reportLimiter = new MessageLimiter(MAX_REPORTS);
+
+    public ConfigurableMachineDisassembly(World world, BlockPos ctrlPos, EntityPlayer player, DisassemblyIngredient.Plan plan, boolean useAeItems, boolean useAeFluids, int tickInterval, int operationsPerTick) {
+        this.world = world;
+        this.ctrlPos = ctrlPos;
+        this.player = player;
+        this.plan = plan;
+        this.useAeItems = useAeItems;
+        this.useAeFluids = useAeFluids;
+        this.tickInterval = tickInterval;
+        this.operationsPerTick = operationsPerTick;
+    }
+
+    @Override
+    public World getWorld() {
+        return world;
+    }
+
+    @Override
+    public BlockPos getCtrlPos() {
+        return ctrlPos;
+    }
+
+    @Override
+    public EntityPlayer getPlayer() {
+        return player;
+    }
+
+    @Override
+    public int getTickInterval() {
+        return tickInterval;
+    }
+
+    @Override
+    public int getOperationsPerTick() {
+        return operationsPerTick;
+    }
+
+    @Override
+    public boolean isControllerInvalid() {
+        TileEntity te = world.getTileEntity(ctrlPos);
+        return !(te instanceof TileMultiblockMachineController);
+    }
+
+    @Override
+    public boolean isCompleted() {
+        return plan.itemEntries().isEmpty() && plan.fluidEntries().isEmpty();
+    }
+
+    @Override
+    public void tick() {
+        List<DisassemblyIngredient.ItemEntry> itemIngredient = plan.itemEntries();
+        List<DisassemblyIngredient.FluidEntry> fluidIngredient = plan.fluidEntries();
+        if (!itemIngredient.isEmpty()) {
+            disassembleItemBlock(itemIngredient);
+        } else if (!fluidIngredient.isEmpty()) {
+            disassembleFluidBlock(fluidIngredient);
+        }
+    }
+
+    @Override
+    public void report() {
+    }
+
+    @Override
+    public String getCancelledMessageKey() {
+        return "message.mmce_advanced_builder_tool.disassembly_cancelled";
+    }
+
+    @Override
+    public String getSuccessMessageKey() {
+        return "message.mmce_advanced_builder_tool.disassembly_success";
+    }
+
+    private void disassembleItemBlock(List<DisassemblyIngredient.ItemEntry> itemIngredient) {
+        Iterator<DisassemblyIngredient.ItemEntry> iterator = itemIngredient.iterator();
+        DisassemblyIngredient.ItemEntry ingredient = iterator.next();
+        BlockPos realPos = ctrlPos.add(ingredient.pos());
+        if (realPos.equals(ctrlPos)) {
+            iterator.remove();
+            return;
+        }
+
+        Tuple<ItemStack, IBlockState> matched = AdvancedBuilderUtils.findMatchingItemCandidate(world, realPos, ingredient.candidates());
+        if (matched == null) {
+            iterator.remove();
+            return;
+        }
+
+        ItemStack recovered = matched.getFirst().copy();
+        if (recovered.isEmpty()) {
+            iterator.remove();
+            return;
+        }
+        if (useAeItems) {
+            if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertItem(player, recovered)) {
+                reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
+                return;
+            }
+        }
+        List<ItemStack> nativeDrops = breakItemBlock(realPos);
+        if (nativeDrops == null) {
+            return;
+        }
+
+        boolean blockReturnedByNativeDrop = false;
+        for (ItemStack nativeDrop : nativeDrops) {
+            if (ItemStack.areItemsEqual(nativeDrop, recovered)) {
+                blockReturnedByNativeDrop = true;
+            }
+            returnItem(nativeDrop);
+        }
+        if (!blockReturnedByNativeDrop) {
+            returnItem(recovered);
+        }
+        world.playSound(null, realPos, SoundEvents.BLOCK_STONE_BREAK, SoundCategory.BLOCKS, 1.0F, 1.0F);
+        iterator.remove();
+    }
+
+    private void disassembleFluidBlock(List<DisassemblyIngredient.FluidEntry> fluidIngredient) {
+        Iterator<DisassemblyIngredient.FluidEntry> iterator = fluidIngredient.iterator();
+        DisassemblyIngredient.FluidEntry ingredient = iterator.next();
+        BlockPos realPos = ctrlPos.add(ingredient.pos());
+        if (realPos.equals(ctrlPos)) {
+            iterator.remove();
+            return;
+        }
+
+        Tuple<FluidStack, IBlockState> matched = AdvancedBuilderUtils.findMatchingFluidCandidate(world, realPos, ingredient.candidates());
+        if (matched == null) {
+            iterator.remove();
+            return;
+        }
+
+        FluidStack recovered = matched.getFirst().copy();
+        if (useAeFluids) {
+            if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertFluid(player, recovered)) {
+                reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
+                return;
+            }
+        }
+        if (!breakBlock(realPos)) {
+            return;
+        }
+
+        if (useAeFluids) {
+            Ae2AssemblyExtractor.insertFluid(player, recovered);
+        }
+        world.playSound(null, realPos, SoundEvents.ITEM_BUCKET_FILL, SoundCategory.BLOCKS, 1.0F, 1.0F);
+        iterator.remove();
+    }
+
+    private boolean breakBlock(BlockPos realPos) {
+        IBlockState current = world.getBlockState(realPos);
+        if (current.getBlock() == Blocks.AIR) {
+            return true;
+        }
+        BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(world, realPos, current, player);
+        MinecraftForge.EVENT_BUS.post(event);
+        if (event.isCanceled()) {
+            reportLimited("message.mmce_advanced_builder_tool.break_cancelled");
+            return false;
+        }
+
+        return world.setBlockToAir(realPos);
+    }
+
+    private List<ItemStack> breakItemBlock(BlockPos realPos) {
+        IBlockState current = world.getBlockState(realPos);
+        if (current.getBlock() == Blocks.AIR) {
+            return Collections.emptyList();
+        }
+        AxisAlignedBB bounds = new AxisAlignedBB(realPos).grow(1.0D);
+        Set<EntityItem> existing = Collections.newSetFromMap(new IdentityHashMap<EntityItem, Boolean>());
+        existing.addAll(world.getEntitiesWithinAABB(EntityItem.class, bounds));
+
+        BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(world, realPos, current, player);
+        MinecraftForge.EVENT_BUS.post(event);
+        if (event.isCanceled()) {
+            reportLimited("message.mmce_advanced_builder_tool.break_cancelled");
+            return null;
+        }
+        if (!world.setBlockToAir(realPos)) {
+            return null;
+        }
+
+        List<ItemStack> drops = new ArrayList<>();
+        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, bounds)) {
+            if (existing.contains(entity) || entity.isDead || entity.getItem().isEmpty()) {
+                continue;
+            }
+            drops.add(entity.getItem().copy());
+            entity.setDead();
+        }
+        return drops;
+    }
+
+    private void returnItem(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        if (useAeItems && Mods.AE2.isLoading()) {
+            ItemStack leftover = Ae2AssemblyExtractor.insertItem(player, stack);
+            if (!leftover.isEmpty()) {
+                giveOrDrop(leftover);
+            }
+        } else {
+            giveOrDrop(stack);
+        }
+    }
+
+    private void giveOrDrop(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        ItemStack remaining = stack.copy();
+        if (player.inventory.addItemStackToInventory(remaining) || remaining.isEmpty()) {
+            return;
+        }
+        EntityItem entityItem = new EntityItem(world, player.posX, player.posY, player.posZ, remaining.copy());
+        entityItem.setNoPickupDelay();
+        world.spawnEntity(entityItem);
+    }
+
+    private void reportLimited(String key) {
+        if (reportLimiter.tryAcquire(player, "message.mmce_advanced_builder_tool.disassembly_suppressed")) {
+            AdvancedBuilderUtils.sendTranslation(player, key);
+        }
+    }
+}

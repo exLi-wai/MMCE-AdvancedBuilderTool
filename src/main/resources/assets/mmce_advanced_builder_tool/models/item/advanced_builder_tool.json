@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "mmce_advanced_builder_tool:items/advanced_builder_tool"
+  }
+}

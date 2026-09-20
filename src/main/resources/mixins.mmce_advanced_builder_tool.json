@@ -1,0 +1,13 @@
+{
+	"package": "com.lw.mmce_advanced_builder_tool.mixin",
+	"required": true,
+	"refmap": "mixins.mmce_advanced_builder_tool.refmap.json",
+	"target": "@env(DEFAULT)",
+	"minVersion": "0.8.5",
+	"compatibilityLevel": "JAVA_8",
+	"mixins": [
+		"ae2.MixinContainerCraftConfirm"
+	],
+	"server": [],
+	"client": []
+}

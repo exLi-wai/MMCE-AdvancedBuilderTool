@@ -217,6 +217,12 @@ jar {
         if (propertyBool('use_access_transformer')) {
             attribute_map['FMLAT'] = propertyString('access_transformer_locations')
         }
+        if (propertyBool('use_mixins')) {
+            // MixinBooter discovers mixin configs through this manifest attribute.
+            attribute_map['MixinConfigs'] = propertyStringList('mixin_configs')
+                    .collect { "mixins.${it}.json" as String }
+                    .join(',')
+        }
         attributes(attribute_map)
     }
 }
