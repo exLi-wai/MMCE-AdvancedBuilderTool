@@ -1,0 +1,63 @@
+apply from: 'gradle/scripts/helpers.gradle'
+
+repositories {
+    // Other repositories described by default:
+    // CleanroomMC: https://maven.cleanroommc.com
+    exclusiveContent {
+        forRepository {
+            maven {
+                name 'CurseMaven'
+                url 'https://cursemaven.com'
+            }
+        }
+        filter {
+            includeGroup 'curse.maven'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name 'Modrinth'
+                url 'https://api.modrinth.com/maven'
+            }
+        }
+        filter {
+            includeGroup 'maven.modrinth'
+        }
+    }
+    mavenLocal() // Must be last for caching to work
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+dependencies {
+    runtimeOnly 'com.cleanroommc:strip-latest-forge-requirements:1.0'
+    runtimeOnly 'com.cleanroommc:osxnarratorblocker:1.0'
+    runtimeOnly 'mezz:jei:4.32.0'
+    runtimeOnly 'curse.maven:JEC-250702:8581272'
+    runtimeOnly 'curse.maven:HEC-640802:4874506'
+
+    implementation rfg.deobf("curse.maven:ae2-extended-life-570458:6302098")
+    implementation rfg.deobf("curse.maven:mmce-817377:6945422")
+    implementation rfg.deobf("curse.maven:geckolib-388172:4020277")
+    implementation rfg.deobf("curse.maven:AE2FluidCraftReworkUnofficial-1404390:7742544")
+    implementation(rfg.deobf("com.cleanroommc:modularui:3.1.6")) {
+        exclude group: "mezz.jei", module: "jei_1.12.2"
+    }
+}
+
+// Need reobfJar to use uber jars, so dependencies that are shaded in are present
+tasks.named('reobfJar').configure {
+    inputJar.set(tasks.named('shadowJar').flatMap({ it.archiveFile }))
+}
+
+// By default, it will use a "uberdev" suffix, and only pack shade configuration dependencies
+// Uberdev: dev jar w/ dependencies, NOT a reobfuscated artifact!
+// The end result (reobfJar) will have a non-suffixed name, as unlike normal shading envs, reobfJar is the end task
+tasks.shadowJar {
+    archiveClassifier = 'uberdev'
+    configurations = [ project.configurations.shade ]
+}
