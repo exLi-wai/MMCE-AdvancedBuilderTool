@@ -4,83 +4,67 @@ import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import hellfirepvp.modularmachinery.common.machine.DynamicMachine;
 import hellfirepvp.modularmachinery.common.machine.TaggedPositionBlockArray;
-import net.minecraftforge.fml.common.Loader;
+import net.edwin.mmcecomplement.attachment.AttachmentMachine;
+import net.edwin.mmcecomplement.attachment.AttachmentModule;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Map;
 
+/**
+ * Bridge to MMCE Complement's attachment-module API.
+ *
+ * <p>The mod is a {@code compileOnly} dependency, so every entry point of this class
+ * is guarded by {@link Mods#MMCE_COMPLEMENT}. Nothing here may run without that guard:
+ * {@link #findPattern} touches {@link AttachmentMachine} types directly. The
+ * MMCE Complement only handler lives in the nested class below so that loading this
+ * class never drags those types in.
+ */
 public final class AttachmentModuleCompat {
 
-    public static final String MOD_ID = "mmce_complement";
-
-    private static final String ATTACHMENT_MACHINE_CLASS =
-            "net.edwin.mmcecomplement.attachment.AttachmentMachine";
-    private static final String GET_MODULES_METHOD = "mmceComplement$getAttachmentModules";
-    private static final String GET_EFFECTIVE_PATTERN_METHOD = "getEffectivePattern";
-    private static boolean resolved;
-    private static Class<?> attachmentMachineClass;
-    private static Method getModulesMethod;
-
-    private AttachmentModuleCompat() {
-    }
-    public static boolean isAvailable() {
-        return Loader.isModLoaded(MOD_ID);
-    }
-
+    /**
+     * Resolves the selected module-only pattern.
+     *
+     * @return the attachment pattern, or {@code null} when the id is empty, MMCE
+     *         Complement is absent, or the machine has no such module
+     */
     public static TaggedPositionBlockArray findPattern(DynamicMachine machine, String moduleId) {
-        if (machine == null || moduleId == null || moduleId.trim().isEmpty() || !Mods.MMCE_COMPLEMENT.isLoading()) {
+        if (machine == null || moduleId == null || moduleId.trim().isEmpty()
+                || !Mods.MMCE_COMPLEMENT.isLoading()) {
             return null;
         }
-        if (!resolve() || !attachmentMachineClass.isInstance(machine)) {
-            return null;
-        }
-
-        try {
-            Object moduleMap = getModulesMethod.invoke(machine);
-            if (!(moduleMap instanceof Map)) {
-                return null;
-            }
-
-            Map<?, ?> modules = (Map<?, ?>) moduleMap;
-            Object module = modules.get(moduleId.trim());
-            if (module == null) {
-                return null;
-            }
-
-            Method getEffectivePattern = module.getClass().getMethod(GET_EFFECTIVE_PATTERN_METHOD,
-                    TaggedPositionBlockArray.class, Map.class);
-            Object pattern = getEffectivePattern.invoke(module, machine.getPattern(), modules);
-            return pattern instanceof TaggedPositionBlockArray
-                    ? (TaggedPositionBlockArray) pattern
-                    : null;
-        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | LinkageError e) {
-            MMCEAdvancedBuilderTool.LOGGER.warn("Failed to resolve MMCE attachment module '{}'; falling back to main",
-                    moduleId, e);
-            return null;
-        }
+        return Handler.findPattern(machine, moduleId.trim());
     }
 
-    private static synchronized boolean resolve() {
-        if (resolved) {
-            return attachmentMachineClass != null;
+    private static final class Handler {
+
+        private Handler() {
         }
-        resolved = true;
-        try {
-            attachmentMachineClass = Class.forName(ATTACHMENT_MACHINE_CLASS, false,
-                    AttachmentModuleCompat.class.getClassLoader());
-            getModulesMethod = attachmentMachineClass.getMethod(GET_MODULES_METHOD);
-        } catch (ClassNotFoundException e) {
-            MMCEAdvancedBuilderTool.LOGGER.warn(
-                    "MMCE Complement is loaded, but {} is missing; attachment modules are disabled",
-                    ATTACHMENT_MACHINE_CLASS);
-            attachmentMachineClass = null;
-        } catch (NoSuchMethodException | LinkageError e) {
-            MMCEAdvancedBuilderTool.LOGGER.warn(
-                    "MMCE Complement is loaded, but its attachment-module API could not be resolved; "
-                            + "attachment modules are disabled", e);
-            attachmentMachineClass = null;
+
+        private static TaggedPositionBlockArray findPattern(DynamicMachine machine, String moduleId) {
+            try {
+                if (!(machine instanceof AttachmentMachine)) {
+                    return null;
+                }
+
+                Map<String, AttachmentModule> modules =
+                        ((AttachmentMachine) machine).mmceComplement$getAttachmentModules();
+                if (modules == null) {
+                    return null;
+                }
+
+                AttachmentModule module = modules.get(moduleId);
+                if (module == null) {
+                    return null;
+                }
+
+                TaggedPositionBlockArray pattern =
+                        module.getEffectivePattern(machine.getPattern(), modules);
+                return pattern == null ? null : new TaggedPositionBlockArray(pattern);
+            } catch (LinkageError error) {
+                MMCEAdvancedBuilderTool.LOGGER.warn(
+                        "MMCE Complement attachment-module API is incompatible with this build; "
+                                + "falling back to the main pattern", error);
+                return null;
+            }
         }
-        return attachmentMachineClass != null;
     }
 }

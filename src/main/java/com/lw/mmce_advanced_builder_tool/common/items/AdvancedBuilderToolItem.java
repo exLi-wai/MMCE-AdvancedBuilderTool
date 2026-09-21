@@ -27,6 +27,7 @@ import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilder
 import com.lw.mmce_advanced_builder_tool.common.network.AdvancedBuilderNetwork;
 import com.lw.mmce_advanced_builder_tool.common.network.PacketBuilderConfig;
 import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
@@ -158,13 +159,14 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .setNumbers(0, 4096)
                         .background(GuiTextures.DISPLAY_SMALL)
                         .width(50).height(18)))
-                .child(row("gui.mmce_advanced_builder_tool.attachment_module", new TextFieldWidget()
-                        .value(SyncHandlers.string(() -> AdvancedBuilderConfig.attachmentModule(stack), val -> {
-                            AdvancedBuilderConfig.setAttachmentModule(stack, val);
-                            syncConfigToServer(inventoryData, stack);
-                        }))
-                        .background(GuiTextures.DISPLAY_SMALL)
-                        .width(50).height(18))));
+                .childIf(Mods.MMCE_COMPLEMENT.isLoading(),
+                        () -> row("gui.mmce_advanced_builder_tool.attachment_module", new TextFieldWidget()
+                                .value(SyncHandlers.string(() -> AdvancedBuilderConfig.attachmentModule(stack), val -> {
+                                    AdvancedBuilderConfig.setAttachmentModule(stack, val);
+                                    syncConfigToServer(inventoryData, stack);
+                                }))
+                                .background(GuiTextures.DISPLAY_SMALL)
+                                .width(50).height(18))));
         return panel;
     }
 
@@ -194,6 +196,10 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
         tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.3", AdvancedBuilderConfig.useAeFluids(stack) ? "True" : "False"));
         tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.4", AdvancedBuilderConfig.dynamicLength(stack)));
         tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.5", AdvancedBuilderConfig.disassembleMode(stack) ? "True" : "False"));
+        if (Mods.MMCE_COMPLEMENT.isLoading() && !AdvancedBuilderConfig.attachmentModule(stack).isEmpty()) {
+            tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.7",
+                    AdvancedBuilderConfig.attachmentModule(stack)));
+        }
         tooltip.add(I18n.translateToLocal("tooltip.mmce_advanced_builder_tool.6"));
     }
 }

@@ -5,6 +5,7 @@ tooltip.mmce_advanced_builder_tool.3=通过无线终端调用AE流体：%s
 tooltip.mmce_advanced_builder_tool.4=动态结构长度：%d
 tooltip.mmce_advanced_builder_tool.5=拆卸模式：%s
 tooltip.mmce_advanced_builder_tool.6=潜行右键MMCE控制器执行当前模式。
+tooltip.mmce_advanced_builder_tool.7=附属模块：%s
 gui.mmce_advanced_builder_tool.title=MMCE高级搭建工具
 gui.mmce_advanced_builder_tool.disassemble_mode=拆卸模式
 gui.mmce_advanced_builder_tool.use_ae_items=通过无线终端调用AE物品

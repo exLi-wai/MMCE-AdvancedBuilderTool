@@ -40,13 +40,13 @@ dependencies {
     runtimeOnly 'curse.maven:JEC-250702:8581272'
     runtimeOnly 'curse.maven:HEC-640802:4874506'
 
-    runtimeOnly rfg.deobf("curse.maven:mmce-817377:6945422")
+    runtimeOnly rfg.deobf("curse.maven:mmce-817377:7372951")
     runtimeOnly rfg.deobf("curse.maven:ae2-extended-life-570458:6302098")
     runtimeOnly rfg.deobf("curse.maven:baubles-227083:2518667")
     runtimeOnly rfg.deobf("curse.maven:geckolib-388172:4020277")
     runtimeOnly rfg.deobf("curse.maven:AE2FluidCraftReworkUnofficial-1404390:7742544")
 
-    implementation rfg.deobf("curse.maven:mmce-817377:6945422")
+    implementation rfg.deobf("curse.maven:mmce-817377:7372951")
     implementation rfg.deobf("curse.maven:ae2-extended-life-570458:6302098")
     implementation rfg.deobf("curse.maven:baubles-227083:2518667")
     implementation rfg.deobf("curse.maven:geckolib-388172:4020277")
@@ -54,6 +54,8 @@ dependencies {
     implementation(rfg.deobf("com.cleanroommc:modularui:3.1.6")) {
         exclude group: "mezz.jei", module: "jei_1.12.2"
     }
+
+    compileOnly rfg.deobf("curse.maven:mmceC-1563518:8830125")
 }
 
 // Need reobfJar to use uber jars, so dependencies that are shaded in are present

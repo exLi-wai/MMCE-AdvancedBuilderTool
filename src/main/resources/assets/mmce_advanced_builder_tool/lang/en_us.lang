@@ -5,6 +5,7 @@ tooltip.mmce_advanced_builder_tool.3=Use AE fluids from wireless terminal: %s
 tooltip.mmce_advanced_builder_tool.4=Dynamic length: %d
 tooltip.mmce_advanced_builder_tool.5=Disassembly mode: %s
 tooltip.mmce_advanced_builder_tool.6=Sneak right click an MMCE controller to run the selected mode.
+tooltip.mmce_advanced_builder_tool.7=Attachment module: %s
 gui.mmce_advanced_builder_tool.title=MMCE Advanced Structure Builder
 gui.mmce_advanced_builder_tool.disassemble_mode=Disassembly mode
 gui.mmce_advanced_builder_tool.use_ae_items=Use AE items from wireless terminal

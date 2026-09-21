@@ -11,9 +11,6 @@ public final class AdvancedBuilderNetwork {
 
     private static int packetId = 0;
 
-    private AdvancedBuilderNetwork() {
-    }
-
     public static void init() {
         CHANNEL.registerMessage(PacketBuilderConfig.class, PacketBuilderConfig.class, packetId++, Side.SERVER);
     }
