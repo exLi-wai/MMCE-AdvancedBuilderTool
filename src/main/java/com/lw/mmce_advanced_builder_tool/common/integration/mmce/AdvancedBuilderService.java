@@ -79,7 +79,9 @@ public final class AdvancedBuilderService {
 
         StructureIngredient ingredient = StructureIngredient.of(world, pos, machinePattern);
         if (player.isCreative()) {
-            new ConfigurableMachineAssembly(world, pos, player, ingredient, false, false, false, 1, Integer.MAX_VALUE).assemblyCreative();
+            AdvancedBuilderTaskManager.addTask(new CreativeMachineAssembly(world, pos, player, ingredient,
+                    tickInterval, operationsPerTick));
+            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.started");
             return;
         }
 

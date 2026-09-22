@@ -25,11 +25,6 @@ public abstract class MixinContainerCraftConfirm implements AdvancedBuilderCraft
         this.abtRequester = requester;
     }
 
-    @Override
-    public AdvancedBuilderCraftingRequester abt$getRequester() {
-        return abtRequester;
-    }
-
     @Redirect(
             method = "startJob",
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingGrid;submitJob(Lappeng/api/networking/crafting/ICraftingJob;Lappeng/api/networking/crafting/ICraftingRequester;Lappeng/api/networking/crafting/ICraftingCPU;ZLappeng/api/networking/security/IActionSource;)Lappeng/api/networking/crafting/ICraftingLink;"),

@@ -11,21 +11,22 @@ import net.minecraft.init.Blocks;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.NonNullList;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.Tuple;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.items.CapabilityItemHandler;
+import net.minecraftforge.items.IItemHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
 
@@ -136,6 +137,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         if (useAeItems) {
             if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertItem(player, recovered)) {
                 reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
+                iterator.remove();
                 return;
             }
         }
@@ -177,10 +179,12 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         if (useAeFluids) {
             if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertFluid(player, recovered)) {
                 reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
+                iterator.remove();
                 return;
             }
         }
         if (!breakBlock(realPos)) {
+            iterator.remove();
             return;
         }
 
@@ -211,9 +215,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         if (current.getBlock() == Blocks.AIR) {
             return Collections.emptyList();
         }
-        AxisAlignedBB bounds = new AxisAlignedBB(realPos).grow(1.0D);
-        Set<EntityItem> existing = Collections.newSetFromMap(new IdentityHashMap<EntityItem, Boolean>());
-        existing.addAll(world.getEntitiesWithinAABB(EntityItem.class, bounds));
+        TileEntity tileEntity = world.getTileEntity(realPos);
 
         BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(world, realPos, current, player);
         MinecraftForge.EVENT_BUS.post(event);
@@ -221,19 +223,55 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
             reportLimited("message.mmce_advanced_builder_tool.break_cancelled");
             return null;
         }
+
+        List<ItemStack> drops = collectBlockDrops(realPos, current, tileEntity);
         if (!world.setBlockToAir(realPos)) {
             return null;
         }
+        return drops;
+    }
+
+    /**
+     * Uses the five argument {@code getDrops} overload. The player-aware overload that Forge patches
+     * into {@code Block} is deliberately not called here: it is absent from a workspace built on
+     * unpatched Minecraft sources, so invoking it would not compile. The consequence is that
+     * harvest-sensitive drops (fortune, silk touch) follow the block's default metadata drops.
+     */
+    private List<ItemStack> collectBlockDrops(BlockPos realPos, IBlockState state, TileEntity tileEntity) {
+        NonNullList<ItemStack> blockDrops = NonNullList.create();
+        state.getBlock().getDrops(blockDrops, world, realPos, state, 0);
 
         List<ItemStack> drops = new ArrayList<>();
-        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, bounds)) {
-            if (existing.contains(entity) || entity.isDead || entity.getItem().isEmpty()) {
-                continue;
+        for (ItemStack drop : blockDrops) {
+            if (!drop.isEmpty()) {
+                drops.add(drop.copy());
             }
-            drops.add(entity.getItem().copy());
-            entity.setDead();
         }
+        collectTileInventoryDrops(tileEntity, drops);
         return drops;
+    }
+
+    /**
+     * Blocks that keep their contents inside the tile entity (stocking buffers, drives, crates and
+     * similar) do not expose them through {@code getDrops}. Reading the inventory capability is
+     * exact, whereas inferring drops from newly spawned item entities can double-return or miss
+     * stacks. Inventory contents are additive: the shell still drops as a normal item.
+     */
+    private void collectTileInventoryDrops(TileEntity tileEntity, List<ItemStack> drops) {
+        if (!(tileEntity instanceof ICapabilityProvider)
+                || !((ICapabilityProvider) tileEntity).hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)) {
+            return;
+        }
+        IItemHandler handler = ((ICapabilityProvider) tileEntity).getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
+        if (handler == null) {
+            return;
+        }
+        for (int slot = 0; slot < handler.getSlots(); slot++) {
+            ItemStack stored = handler.getStackInSlot(slot);
+            if (!stored.isEmpty()) {
+                drops.add(stored.copy());
+            }
+        }
     }
 
     private void returnItem(ItemStack stack) {

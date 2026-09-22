@@ -9,13 +9,19 @@ import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class AdvancedBuilderTaskManager {
 
+    private static final long CLEANUP_GRACE_TICKS = 100L;
+
     private static final List<AdvancedBuilderTask> TASKS = new ArrayList<>();
+    private static final Map<AdvancedBuilderTask, Long> NEXT_RUN_TICK = new IdentityHashMap<>();
+    private static final Map<AdvancedBuilderTask, Long> NEXT_CLEANUP_TICK = new IdentityHashMap<>();
 
     public static void addTask(AdvancedBuilderTask task) {
         TASKS.add(task);
@@ -23,7 +29,7 @@ public class AdvancedBuilderTaskManager {
 
     public static boolean hasTask(World world, BlockPos pos) {
         for (AdvancedBuilderTask task : TASKS) {
-            if (task.getWorld().provider.getDimension() == world.provider.getDimension() && task.getCtrlPos().equals(pos)) {
+            if (task.getWorld() == world && task.getCtrlPos().equals(pos)) {
                 return true;
             }
         }
@@ -32,19 +38,23 @@ public class AdvancedBuilderTaskManager {
 
     public static boolean cancelPlayerTask(EntityPlayer player) {
         UUID playerId = player.getGameProfile().getId();
+        boolean cancelled = false;
         Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
         while (iterator.hasNext()) {
             AdvancedBuilderTask task = iterator.next();
+            if (task.getWorld() != player.world || task.getPlayer() == null) {
+                continue;
+            }
             if (!playerId.equals(task.getPlayer().getGameProfile().getId())) {
                 continue;
             }
             task.cancel();
-            iterator.remove();
+            removeTask(task, iterator);
             task.report();
             AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
-            return true;
+            cancelled = true;
         }
-        return false;
+        return cancelled;
     }
 
     @SubscribeEvent
@@ -59,22 +69,30 @@ public class AdvancedBuilderTaskManager {
         Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
         while (iterator.hasNext()) {
             AdvancedBuilderTask task = iterator.next();
+            if (task.getWorld() != player.world || task.getPlayer() == null) {
+                if (isCleanupDue(task, worldTime)) {
+                    task.cancel();
+                    removeTask(task, iterator);
+                    AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+                }
+                continue;
+            }
             if (!playerId.equals(task.getPlayer().getGameProfile().getId())) {
                 continue;
             }
             if (task.isControllerInvalid()) {
-                iterator.remove();
+                removeTask(task, iterator);
                 task.report();
                 AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
             if (task.isCancelled()) {
-                iterator.remove();
+                removeTask(task, iterator);
                 task.report();
                 AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
-            if (worldTime % task.getTickInterval() != 0) {
+            if (!isRunDue(task, worldTime)) {
                 continue;
             }
             task.beginBatch();
@@ -89,22 +107,65 @@ public class AdvancedBuilderTaskManager {
                 task.endBatch();
             }
             if (task.isCancelled()) {
-                iterator.remove();
+                removeTask(task, iterator);
                 task.report();
                 AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
             if (task.isCompleted()) {
-                iterator.remove();
+                removeTask(task, iterator);
                 task.report();
                 AdvancedBuilderUtils.sendTranslation(player, task.getSuccessMessageKey());
             }
         }
     }
 
+    private static boolean isRunDue(AdvancedBuilderTask task, long worldTime) {
+        Long nextRun = NEXT_RUN_TICK.get(task);
+        if (nextRun == null) {
+            nextRun = worldTime;
+        }
+        if (worldTime < nextRun) {
+            return false;
+        }
+        NEXT_RUN_TICK.put(task, worldTime + Math.max(1, task.getTickInterval()));
+        return true;
+    }
+
+    private static boolean isCleanupDue(AdvancedBuilderTask task, long worldTime) {
+        long interval = Math.max(1, task.getTickInterval());
+        Long nextCleanup = NEXT_CLEANUP_TICK.get(task);
+        if (nextCleanup == null) {
+            NEXT_CLEANUP_TICK.put(task, worldTime + CLEANUP_GRACE_TICKS);
+            return false;
+        }
+        if (worldTime < nextCleanup) {
+            return false;
+        }
+        NEXT_CLEANUP_TICK.put(task, worldTime + interval);
+        return true;
+    }
+
+    private static void removeTask(AdvancedBuilderTask task, Iterator<AdvancedBuilderTask> iterator) {
+        clearSchedule(task);
+        iterator.remove();
+    }
+
+    private static void clearSchedule(AdvancedBuilderTask task) {
+        NEXT_RUN_TICK.remove(task);
+        NEXT_CLEANUP_TICK.remove(task);
+    }
+
     @SubscribeEvent
     public void onPlayerLogOut(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID playerId = event.player.getGameProfile().getId();
-        TASKS.removeIf(task -> playerId.equals(task.getPlayer().getGameProfile().getId()));
+        Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
+        while (iterator.hasNext()) {
+            AdvancedBuilderTask task = iterator.next();
+            if (task.getPlayer() != null && playerId.equals(task.getPlayer().getGameProfile().getId())) {
+                task.cancel();
+                removeTask(task, iterator);
+            }
+        }
     }
 }

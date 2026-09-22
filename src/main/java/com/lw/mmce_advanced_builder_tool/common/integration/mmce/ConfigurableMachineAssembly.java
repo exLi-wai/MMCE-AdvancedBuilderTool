@@ -16,6 +16,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
@@ -253,7 +254,9 @@ public class ConfigurableMachineAssembly extends MachineAssembly implements Adva
         IBlockState state = consumed.getSecond();
 
         if (!placeAssemblyBlock(realPos, state)) {
-            getPlayer().inventory.addItemStackToInventory(required);
+            if (!getPlayer().inventory.addItemStackToInventory(required)) {
+                getPlayer().dropItem(required, false);
+            }
         } else {
             getWorld().playSound(null, realPos, SoundEvents.BLOCK_STONE_PLACE, SoundCategory.BLOCKS, 1.0F, 1.0F);
             applyTileNbt(realPos, state, ingredient);
@@ -288,6 +291,18 @@ public class ConfigurableMachineAssembly extends MachineAssembly implements Adva
 
         if (placeAssemblyBlock(realPos, state)) {
             getWorld().playSound(null, realPos, SoundEvents.ITEM_BUCKET_EMPTY, SoundCategory.BLOCKS, 1.0F, 1.0F);
+        } else {
+            FluidStack remainder = consumed.getFirst().copy();
+            for (IFluidHandlerItem handler : getBatchFluidHandlers()) {
+                int filled = handler.fill(remainder, true);
+                if (filled > 0) {
+                    remainder.amount -= filled;
+                    if (remainder.amount <= 0) break;
+                }
+            }
+            if (remainder.amount > 0 && useAeFluids && Mods.AE2.isLoading()) {
+                remainder = Ae2AssemblyExtractor.insertFluid(getPlayer(), remainder);
+            }
         }
         iterator.remove();
     }
@@ -908,15 +923,23 @@ public class ConfigurableMachineAssembly extends MachineAssembly implements Adva
     }
 
     private void applyTileNbt(BlockPos realPos, IBlockState state, StructureIngredient.ItemIngredient ingredient) {
-        TileEntity te = getWorld().getTileEntity(realPos);
-        if (te != null && ingredient.nbt() != null) {
-            try {
-                te.readFromNBT(ingredient.nbt());
-            } catch (Exception e) {
-                ModularMachinery.log.warn("Failed to apply NBT to TileEntity!", e);
-                getWorld().removeTileEntity(realPos);
-                getWorld().setTileEntity(realPos, state.getBlock().createTileEntity(getWorld(), state));
-            }
+        applyTileNbt(getWorld(), realPos, state, ingredient.nbt());
+    }
+
+    static void applyTileNbt(World world, BlockPos realPos, IBlockState state, NBTTagCompound nbt) {
+        if (nbt == null) {
+            return;
+        }
+        TileEntity te = world.getTileEntity(realPos);
+        if (te == null) {
+            return;
+        }
+        try {
+            te.readFromNBT(nbt);
+        } catch (Exception | LinkageError e) {
+            ModularMachinery.log.warn("Failed to apply NBT to TileEntity!", e);
+            world.removeTileEntity(realPos);
+            world.setTileEntity(realPos, state.getBlock().createTileEntity(world, state));
         }
     }
 

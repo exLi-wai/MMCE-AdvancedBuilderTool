@@ -5,7 +5,6 @@ import github.kasuminova.mmce.common.util.DynamicPattern;
 import hellfirepvp.modularmachinery.common.machine.DynamicMachine;
 import hellfirepvp.modularmachinery.common.util.BlockArray;
 import ink.ikx.mmce.common.utils.FluidUtils;
-import ink.ikx.mmce.common.utils.StructureIngredient;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.state.IBlockState;
@@ -106,28 +105,19 @@ public final class AdvancedBuilderUtils {
 
     public static void appendDynamicPatterns(DynamicMachine machine, BlockArray machinePattern, EnumFacing controllerFacing, int requestedLength) {
         Map<String, DynamicPattern> dynamicPatterns = machine.getDynamicPatterns();
-        int length = requestedLength;
-        for (DynamicPattern pattern : dynamicPatterns.values()) {
-            length = Math.max(length, pattern.getMinSize());
+        if (dynamicPatterns == null || dynamicPatterns.isEmpty()) {
+            return;
         }
         for (DynamicPattern pattern : dynamicPatterns.values()) {
-            int clamped = Math.min(Math.max(pattern.getMinSize(), length), pattern.getMaxSize());
-            pattern.addPatternToBlockArray(machinePattern, clamped, pattern.getFaces().iterator().next(), controllerFacing);
-        }
-    }
+            if (pattern.getFaces() == null || pattern.getFaces().isEmpty()) {
+                continue;
+            }
 
-    public static StructureIngredient createFullStructureIngredient(BlockArray blockArray) {
-        List<StructureIngredient.ItemIngredient> itemIngredients = new ArrayList<>();
-        List<StructureIngredient.FluidIngredient> fluidIngredients = new ArrayList<>();
-        for (Map.Entry<BlockPos, BlockArray.BlockInformation> entry : blockArray.getPattern().entrySet()) {
-            SplitStructureCandidates candidates = splitStructureCandidates(entry.getValue());
-            if (candidates.hasFluids()) {
-                fluidIngredients.add(new StructureIngredient.FluidIngredient(entry.getKey(), candidates.fluidCandidates));
-            } else if (candidates.hasItems()) {
-                itemIngredients.add(new StructureIngredient.ItemIngredient(entry.getKey(), candidates.itemCandidates, entry.getValue().getMatchingTag()));
+            int clamped = clamp(requestedLength, pattern.getMinSize(), pattern.getMaxSize());
+            for (EnumFacing face : pattern.getFaces()) {
+                pattern.addPatternToBlockArray(machinePattern, clamped, face, controllerFacing);
             }
         }
-        return new StructureIngredient(itemIngredients, fluidIngredients);
     }
 
     public static DisassemblyIngredient.Plan createDisassemblyPlan(BlockArray blockArray) {
@@ -181,9 +171,6 @@ public final class AdvancedBuilderUtils {
     }
 
     private static <T> Tuple<T, IBlockState> findMatchingCandidateByState(IBlockState current, List<Tuple<T, IBlockState>> candidates) {
-        // Disassembly must never fall back to BlockInformation.matches(): that
-        // matcher can intentionally ignore metadata for wildcard ingredients.
-        // State equality (including metadata) is required before removing a block.
         for (Tuple<T, IBlockState> candidate : candidates) {
             if (candidate.getSecond() == current || candidate.getSecond().equals(current)) {
                 return candidate;

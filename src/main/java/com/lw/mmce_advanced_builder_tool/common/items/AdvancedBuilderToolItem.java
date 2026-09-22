@@ -105,7 +105,6 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
             return ModularPanel.defaultPanel("mmce_advanced_builder_tool", 176, 162);
         }
         PlayerInventoryGuiData inventoryData = (PlayerInventoryGuiData) data;
-        ItemStack stack = inventoryData.getUsedItemStack();
         if (inventoryData.getInventoryType() == InventoryTypes.PLAYER) {
             syncManager.bindPlayerInventory(inventoryData.getPlayer(), (inv, index) -> index == inventoryData.getSlotIndex()
                     ? new ModularSlot(inv, index).accessibility(false, false)
@@ -116,7 +115,8 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
         panel.child(Flow.column().margin(7).widthRel(1f).heightRel(1f)
                 .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.title")).height(12).widthRel(1f))
                 .child(row("gui.mmce_advanced_builder_tool.disassemble_mode", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.disassembleMode(stack), val -> {
+                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.disassembleMode(currentStack(inventoryData)), val -> {
+                            ItemStack stack = currentStack(inventoryData);
                             AdvancedBuilderConfig.setDisassembleMode(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
@@ -124,7 +124,8 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_items", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeItems(stack), val -> {
+                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeItems(currentStack(inventoryData)), val -> {
+                            ItemStack stack = currentStack(inventoryData);
                             AdvancedBuilderConfig.setUseAeItems(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
@@ -132,7 +133,8 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_fluids", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeFluids(stack), val -> {
+                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeFluids(currentStack(inventoryData)), val -> {
+                            ItemStack stack = currentStack(inventoryData);
                             AdvancedBuilderConfig.setUseAeFluids(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
@@ -140,7 +142,8 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.craft_missing", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.craftMissing(stack), val -> {
+                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.craftMissing(currentStack(inventoryData)), val -> {
+                            ItemStack stack = currentStack(inventoryData);
                             AdvancedBuilderConfig.setCraftMissing(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
@@ -148,7 +151,8 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.dynamic_length", new TextFieldWidget()
-                        .value(SyncHandlers.string(() -> String.valueOf(AdvancedBuilderConfig.dynamicLength(stack)), val -> {
+                        .value(SyncHandlers.string(() -> String.valueOf(AdvancedBuilderConfig.dynamicLength(currentStack(inventoryData))), val -> {
+                            ItemStack stack = currentStack(inventoryData);
                             try {
                                 AdvancedBuilderConfig.setDynamicLength(stack, Integer.parseInt(val));
                             } catch (NumberFormatException ignored) {
@@ -161,13 +165,31 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .width(50).height(18)))
                 .childIf(Mods.MMCE_COMPLEMENT.isLoading(),
                         () -> row("gui.mmce_advanced_builder_tool.attachment_module", new TextFieldWidget()
-                                .value(SyncHandlers.string(() -> AdvancedBuilderConfig.attachmentModule(stack), val -> {
+                                .value(SyncHandlers.string(() -> AdvancedBuilderConfig.attachmentModule(currentStack(inventoryData)), val -> {
+                                    ItemStack stack = currentStack(inventoryData);
                                     AdvancedBuilderConfig.setAttachmentModule(stack, val);
                                     syncConfigToServer(inventoryData, stack);
                                 }))
                                 .background(GuiTextures.DISPLAY_SMALL)
                                 .width(50).height(18))));
         return panel;
+    }
+
+    /**
+     * Resolves the tool from the slot the GUI was opened on, instead of caching the stack captured
+     * when the panel was built. The server rejects config packets whose slot no longer holds a
+     * builder, so reading the live slot keeps both sides on the same authoritative NBT: a moved or
+     * dropped tool makes the controls fall back to defaults rather than writing to a stale copy.
+     */
+    @SideOnly(Side.CLIENT)
+    private static ItemStack currentStack(PlayerInventoryGuiData data) {
+        EntityPlayer player = data.getPlayer();
+        int slot = data.getSlotIndex();
+        if (player == null || slot < 0 || slot >= player.inventory.mainInventory.size()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack stack = player.inventory.mainInventory.get(slot);
+        return stack.getItem() instanceof AdvancedBuilderToolItem ? stack : ItemStack.EMPTY;
     }
 
     private Widget<?> row(String labelKey, Widget<?> control) {
