@@ -1,8 +1,9 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.task;
 
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.ae2.Ae2GridAccess;
 import com.lw.mmce_advanced_builder_tool.common.util.MessageLimiter;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.item.EntityItem;
@@ -28,21 +29,30 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
+/**
+ * Tick-driven teardown of a machine pattern: removes the blocks a machine occupies and returns the
+ * recovered materials to the player inventory or to AE storage.
+ *
+ * <p>Block contents are recovered from two merged sources: the block's own drops, and - for blocks
+ * that hide their contents inside a tile entity - the item-handler capability of that tile entity.
+ * Removal publishes {@code BlockEvent.BreakEvent} so protection plugins can veto a position; a
+ * vetoed or otherwise unremovable position is dropped from the plan instead of being retried forever.
+ */
+public class MachineDisassemblyTask implements BuildTask {
 
     private static final int MAX_REPORTS = 8;
 
     private final World world;
     private final BlockPos ctrlPos;
     private final EntityPlayer player;
-    private final DisassemblyIngredient.Plan plan;
+    private final DisassemblyPlan.Plan plan;
     private final boolean useAeItems;
     private final boolean useAeFluids;
     private final int tickInterval;
     private final int operationsPerTick;
     private final MessageLimiter reportLimiter = new MessageLimiter(MAX_REPORTS);
 
-    public ConfigurableMachineDisassembly(World world, BlockPos ctrlPos, EntityPlayer player, DisassemblyIngredient.Plan plan, boolean useAeItems, boolean useAeFluids, int tickInterval, int operationsPerTick) {
+    public MachineDisassemblyTask(World world, BlockPos ctrlPos, EntityPlayer player, DisassemblyPlan.Plan plan, boolean useAeItems, boolean useAeFluids, int tickInterval, int operationsPerTick) {
         this.world = world;
         this.ctrlPos = ctrlPos;
         this.player = player;
@@ -91,8 +101,8 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
 
     @Override
     public void tick() {
-        List<DisassemblyIngredient.ItemEntry> itemIngredient = plan.itemEntries();
-        List<DisassemblyIngredient.FluidEntry> fluidIngredient = plan.fluidEntries();
+        List<DisassemblyPlan.ItemEntry> itemIngredient = plan.itemEntries();
+        List<DisassemblyPlan.FluidEntry> fluidIngredient = plan.fluidEntries();
         if (!itemIngredient.isEmpty()) {
             disassembleItemBlock(itemIngredient);
         } else if (!fluidIngredient.isEmpty()) {
@@ -114,16 +124,16 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         return "message.mmce_advanced_builder_tool.disassembly_success";
     }
 
-    private void disassembleItemBlock(List<DisassemblyIngredient.ItemEntry> itemIngredient) {
-        Iterator<DisassemblyIngredient.ItemEntry> iterator = itemIngredient.iterator();
-        DisassemblyIngredient.ItemEntry ingredient = iterator.next();
+    private void disassembleItemBlock(List<DisassemblyPlan.ItemEntry> itemIngredient) {
+        Iterator<DisassemblyPlan.ItemEntry> iterator = itemIngredient.iterator();
+        DisassemblyPlan.ItemEntry ingredient = iterator.next();
         BlockPos realPos = ctrlPos.add(ingredient.pos());
         if (realPos.equals(ctrlPos)) {
             iterator.remove();
             return;
         }
 
-        Tuple<ItemStack, IBlockState> matched = AdvancedBuilderUtils.findMatchingItemCandidate(world, realPos, ingredient.candidates());
+        Tuple<ItemStack, IBlockState> matched = StructureIngredients.findMatchingItemCandidate(world, realPos, ingredient.candidates());
         if (matched == null) {
             iterator.remove();
             return;
@@ -135,7 +145,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
             return;
         }
         if (useAeItems) {
-            if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertItem(player, recovered)) {
+            if (!Mods.AE2.isLoading() || !Ae2GridAccess.canInsertItem(player, recovered)) {
                 reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
                 iterator.remove();
                 return;
@@ -160,16 +170,16 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         iterator.remove();
     }
 
-    private void disassembleFluidBlock(List<DisassemblyIngredient.FluidEntry> fluidIngredient) {
-        Iterator<DisassemblyIngredient.FluidEntry> iterator = fluidIngredient.iterator();
-        DisassemblyIngredient.FluidEntry ingredient = iterator.next();
+    private void disassembleFluidBlock(List<DisassemblyPlan.FluidEntry> fluidIngredient) {
+        Iterator<DisassemblyPlan.FluidEntry> iterator = fluidIngredient.iterator();
+        DisassemblyPlan.FluidEntry ingredient = iterator.next();
         BlockPos realPos = ctrlPos.add(ingredient.pos());
         if (realPos.equals(ctrlPos)) {
             iterator.remove();
             return;
         }
 
-        Tuple<FluidStack, IBlockState> matched = AdvancedBuilderUtils.findMatchingFluidCandidate(world, realPos, ingredient.candidates());
+        Tuple<FluidStack, IBlockState> matched = StructureIngredients.findMatchingFluidCandidate(world, realPos, ingredient.candidates());
         if (matched == null) {
             iterator.remove();
             return;
@@ -177,7 +187,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
 
         FluidStack recovered = matched.getFirst().copy();
         if (useAeFluids) {
-            if (!Mods.AE2.isLoading() || !Ae2AssemblyExtractor.canInsertFluid(player, recovered)) {
+            if (!Mods.AE2.isLoading() || !Ae2GridAccess.canInsertFluid(player, recovered)) {
                 reportLimited("message.mmce_advanced_builder_tool.ae_insert_failed");
                 iterator.remove();
                 return;
@@ -189,7 +199,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         }
 
         if (useAeFluids) {
-            Ae2AssemblyExtractor.insertFluid(player, recovered);
+            Ae2GridAccess.insertFluid(player, recovered);
         }
         world.playSound(null, realPos, SoundEvents.ITEM_BUCKET_FILL, SoundCategory.BLOCKS, 1.0F, 1.0F);
         iterator.remove();
@@ -279,7 +289,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
             return;
         }
         if (useAeItems && Mods.AE2.isLoading()) {
-            ItemStack leftover = Ae2AssemblyExtractor.insertItem(player, stack);
+            ItemStack leftover = Ae2GridAccess.insertItem(player, stack);
             if (!leftover.isEmpty()) {
                 giveOrDrop(leftover);
             }
@@ -288,6 +298,10 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
         }
     }
 
+    /**
+     * Differs from {@link StructureIngredients#giveOrDrop} on purpose: disassembly recovers bulk
+     * materials that must be collectable immediately, so the entity is spawned with no pickup delay.
+     */
     private void giveOrDrop(ItemStack stack) {
         if (stack.isEmpty()) {
             return;
@@ -303,7 +317,7 @@ public class ConfigurableMachineDisassembly implements AdvancedBuilderTask {
 
     private void reportLimited(String key) {
         if (reportLimiter.tryAcquire(player, "message.mmce_advanced_builder_tool.disassembly_suppressed")) {
-            AdvancedBuilderUtils.sendTranslation(player, key);
+            StructureIngredients.sendTranslation(player, key);
         }
     }
 }

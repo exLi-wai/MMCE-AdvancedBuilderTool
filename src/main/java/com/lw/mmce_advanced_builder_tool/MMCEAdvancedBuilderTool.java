@@ -1,9 +1,10 @@
 package com.lw.mmce_advanced_builder_tool;
 
-import com.lw.mmce_advanced_builder_tool.common.registry.AdvancedBuilderItems;
+import com.lw.mmce_advanced_builder_tool.common.network.BuilderNetwork;
+import com.lw.mmce_advanced_builder_tool.common.registry.BuilderToolRegistry;
 import com.lw.mmce_advanced_builder_tool.common.registry.ModGuiFactories;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderTaskManager;
-import com.lw.mmce_advanced_builder_tool.common.network.AdvancedBuilderNetwork;
+import com.lw.mmce_advanced_builder_tool.common.task.BuildTaskScheduler;
+import com.lw.mmce_advanced_builder_tool.proxy.ClientProxy;
 import com.lw.mmce_advanced_builder_tool.proxy.CommonProxy;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
@@ -19,7 +20,11 @@ import org.apache.logging.log4j.Logger;
         modid = Tags.MOD_ID,
         name = Tags.MOD_NAME,
         version = Tags.VERSION,
-        dependencies = "required-after:modularmachinery;required-after:modularui;after:appliedenergistics2;after:baubles"
+        dependencies =
+                "required-after:modularmachinery;" +
+                "required-after:modularui;" +
+                "after:appliedenergistics2;" +
+                "after:baubles"
 )
 public class MMCEAdvancedBuilderTool {
 
@@ -37,10 +42,10 @@ public class MMCEAdvancedBuilderTool {
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ModGuiFactories.init();
-        AdvancedBuilderItems.init();
-        AdvancedBuilderNetwork.init();
-        MinecraftForge.EVENT_BUS.register(new AdvancedBuilderItems());
-        MinecraftForge.EVENT_BUS.register(new AdvancedBuilderTaskManager());
+        BuilderToolRegistry.init();
+        BuilderNetwork.init();
+        MinecraftForge.EVENT_BUS.register(new BuilderToolRegistry());
+        MinecraftForge.EVENT_BUS.register(new BuildTaskScheduler());
         proxy.preInit(event);
     }
 

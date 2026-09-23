@@ -1,9 +1,10 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common;
 
-import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import com.lw.mmce_advanced_builder_tool.common.integration.mmcecomplement.AttachmentModuleCompat;
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.task.*;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
+import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import hellfirepvp.modularmachinery.common.block.BlockController;
 import hellfirepvp.modularmachinery.common.block.BlockFactoryController;
 import hellfirepvp.modularmachinery.common.machine.DynamicMachine;
@@ -18,9 +19,18 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-public final class AdvancedBuilderService {
+/**
+ * Entry point that turns "the player used the builder on a controller" into a queued task.
+ *
+ * <p>It resolves the target controller and its {@code DynamicMachine}, builds the pattern to work
+ * on (rotated to the controller facing, optionally expanded by the dynamic length or replaced by an
+ * MMCE Complement attachment module), and then picks the task flavour:
+ * assembly, disassembly, or the free creative assembly. Rejections (no controller, no machine, a
+ * task already running on that controller) are reported to the player and nothing is queued.
+ */
+public final class BuilderToolService {
 
-    private AdvancedBuilderService() {
+    private BuilderToolService() {
     }
 
     public static void start(EntityPlayerMP player, BlockPos pos, boolean useAeItems, boolean useAeFluids,
@@ -37,7 +47,7 @@ public final class AdvancedBuilderService {
         TileEntity tile = world.getTileEntity(pos);
         Block block = world.getBlockState(pos).getBlock();
         if (!(tile instanceof TileMultiblockMachineController)) {
-            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.no_controller");
+            StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.no_controller");
             return;
         }
 
@@ -49,12 +59,12 @@ public final class AdvancedBuilderService {
             machine = ((BlockFactoryController) block).getParentMachine();
         }
         if (machine == null) {
-            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.no_machine");
+            StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.no_machine");
             return;
         }
 
-        if (AdvancedBuilderTaskManager.hasTask(world, pos)) {
-            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.already_running");
+        if (BuildTaskScheduler.hasTask(world, pos)) {
+            StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.already_running");
             return;
         }
 
@@ -67,28 +77,28 @@ public final class AdvancedBuilderService {
         } else {
             selectedPattern = machine.getPattern();
             machinePattern = new BlockArray(BlockArrayCache.getBlockArrayCache(selectedPattern, controllerFacing));
-            AdvancedBuilderUtils.appendDynamicPatterns(machine, machinePattern, controllerFacing, dynamicLength);
+            StructureIngredients.appendDynamicPatterns(machine, machinePattern, controllerFacing, dynamicLength);
         }
 
         if (disassembleMode) {
-            DisassemblyIngredient.Plan plan = AdvancedBuilderUtils.createDisassemblyPlan(machinePattern);
-            AdvancedBuilderTaskManager.addTask(new ConfigurableMachineDisassembly(world, pos, player, plan, useAeItems, useAeFluids, tickInterval, operationsPerTick));
-            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.disassembly_started");
+            DisassemblyPlan.Plan plan = StructureIngredients.createDisassemblyPlan(machinePattern);
+            BuildTaskScheduler.addTask(new MachineDisassemblyTask(world, pos, player, plan, useAeItems, useAeFluids, tickInterval, operationsPerTick));
+            StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.disassembly_started");
             return;
         }
 
         StructureIngredient ingredient = StructureIngredient.of(world, pos, machinePattern);
         if (player.isCreative()) {
-            AdvancedBuilderTaskManager.addTask(new CreativeMachineAssembly(world, pos, player, ingredient,
+            BuildTaskScheduler.addTask(new CreativeMachineAssemblyTask(world, pos, player, ingredient,
                     tickInterval, operationsPerTick));
-            AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.started");
+            StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.started");
             return;
         }
 
-        ConfigurableMachineAssembly assembly = new ConfigurableMachineAssembly(world, pos, player, ingredient, useAeItems, useAeFluids, craftMissing, tickInterval, operationsPerTick);
-        AdvancedBuilderTaskManager.addTask(assembly);
+        MachineAssemblyTask assembly = new MachineAssemblyTask(world, pos, player, ingredient, useAeItems, useAeFluids, craftMissing, tickInterval, operationsPerTick);
+        BuildTaskScheduler.addTask(assembly);
         assembly.openCraftingGuiIfNeeded();
-        AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.started");
+        StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.started");
     }
 
     private static BlockArray resolveAttachmentPattern(DynamicMachine machine, String attachmentModule) {

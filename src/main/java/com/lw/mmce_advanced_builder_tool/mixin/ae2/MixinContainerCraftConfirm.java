@@ -7,21 +7,21 @@ import appeng.api.networking.crafting.ICraftingLink;
 import appeng.api.networking.crafting.ICraftingRequester;
 import appeng.api.networking.security.IActionSource;
 import appeng.container.implementations.ContainerCraftConfirm;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderCraftingConfirmBridge;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderCraftingRequester;
+import com.lw.mmce_advanced_builder_tool.common.task.CraftingConfirmBridge;
+import com.lw.mmce_advanced_builder_tool.common.task.CraftingRequester;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(ContainerCraftConfirm.class)
-public abstract class MixinContainerCraftConfirm implements AdvancedBuilderCraftingConfirmBridge {
+public abstract class MixinContainerCraftConfirm implements CraftingConfirmBridge {
 
     @Unique
-    private AdvancedBuilderCraftingRequester abtRequester;
+    private CraftingRequester abtRequester;
 
     @Override
-    public void abt$setRequester(AdvancedBuilderCraftingRequester requester) {
+    public void abt$setRequester(CraftingRequester requester) {
         this.abtRequester = requester;
     }
 

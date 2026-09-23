@@ -1,6 +1,6 @@
 package com.lw.mmce_advanced_builder_tool.common.util;
 
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.DisassemblyIngredient;
+import com.lw.mmce_advanced_builder_tool.common.task.DisassemblyPlan;
 import github.kasuminova.mmce.common.util.DynamicPattern;
 import hellfirepvp.modularmachinery.common.machine.DynamicMachine;
 import hellfirepvp.modularmachinery.common.util.BlockArray;
@@ -30,10 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public final class AdvancedBuilderUtils {
-
-    private AdvancedBuilderUtils() {
-    }
+public final class StructureIngredients {
 
     public static NBTTagCompound getOrCreateTag(ItemStack stack) {
         if (!stack.hasTagCompound()) {
@@ -55,13 +52,13 @@ public final class AdvancedBuilderUtils {
         }
         String fingerprint = buildMessageFingerprint(key, args);
         long now = player.world.getTotalWorldTime();
-        String lastFingerprint = player.getEntityData().getString(AdvancedBuilderMessages.LAST_MESSAGE_TAG);
-        long lastMessageTick = player.getEntityData().getLong(AdvancedBuilderMessages.LAST_MESSAGE_TICK_TAG);
+        String lastFingerprint = player.getEntityData().getString(MessageKeys.LAST_MESSAGE_TAG);
+        long lastMessageTick = player.getEntityData().getLong(MessageKeys.LAST_MESSAGE_TICK_TAG);
         if (fingerprint.equals(lastFingerprint) && now - lastMessageTick <= 2) {
             return;
         }
-        player.getEntityData().setString(AdvancedBuilderMessages.LAST_MESSAGE_TAG, fingerprint);
-        player.getEntityData().setLong(AdvancedBuilderMessages.LAST_MESSAGE_TICK_TAG, now);
+        player.getEntityData().setString(MessageKeys.LAST_MESSAGE_TAG, fingerprint);
+        player.getEntityData().setLong(MessageKeys.LAST_MESSAGE_TICK_TAG, now);
         player.sendMessage(new TextComponentTranslation(key, args));
     }
 
@@ -77,6 +74,17 @@ public final class AdvancedBuilderUtils {
 
     public static String posToString(BlockPos pos) {
         return hellfirepvp.modularmachinery.common.util.MiscUtils.posToString(pos);
+    }
+
+    public static void giveOrDrop(EntityPlayer player, ItemStack stack) {
+        if (player == null || stack.isEmpty()) {
+            return;
+        }
+        ItemStack remaining = stack.copy();
+        if (player.inventory.addItemStackToInventory(remaining) || remaining.isEmpty()) {
+            return;
+        }
+        player.dropItem(remaining, false);
     }
 
     public static boolean isReplaceableForAssembly(World world, BlockPos pos) {
@@ -120,18 +128,18 @@ public final class AdvancedBuilderUtils {
         }
     }
 
-    public static DisassemblyIngredient.Plan createDisassemblyPlan(BlockArray blockArray) {
-        List<DisassemblyIngredient.ItemEntry> itemEntries = new ArrayList<>();
-        List<DisassemblyIngredient.FluidEntry> fluidEntries = new ArrayList<>();
+    public static DisassemblyPlan.Plan createDisassemblyPlan(BlockArray blockArray) {
+        List<DisassemblyPlan.ItemEntry> itemEntries = new ArrayList<>();
+        List<DisassemblyPlan.FluidEntry> fluidEntries = new ArrayList<>();
         for (Map.Entry<BlockPos, BlockArray.BlockInformation> entry : blockArray.getPattern().entrySet()) {
             SplitStructureCandidates candidates = splitStructureCandidates(entry.getValue());
             if (candidates.hasFluids()) {
-                fluidEntries.add(new DisassemblyIngredient.FluidEntry(entry.getKey(), entry.getValue(), candidates.fluidCandidates));
+                fluidEntries.add(new DisassemblyPlan.FluidEntry(entry.getKey(), entry.getValue(), candidates.fluidCandidates));
             } else if (candidates.hasItems()) {
-                itemEntries.add(new DisassemblyIngredient.ItemEntry(entry.getKey(), entry.getValue(), candidates.itemCandidates));
+                itemEntries.add(new DisassemblyPlan.ItemEntry(entry.getKey(), entry.getValue(), candidates.itemCandidates));
             }
         }
-        return new DisassemblyIngredient.Plan(itemEntries, fluidEntries);
+        return new DisassemblyPlan.Plan(itemEntries, fluidEntries);
     }
 
     public static boolean areItemStacksEqual(ItemStack first, ItemStack second) {

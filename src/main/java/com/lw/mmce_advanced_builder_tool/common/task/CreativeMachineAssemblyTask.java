@@ -1,4 +1,4 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.task;
 
 import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
 import ink.ikx.mmce.common.utils.StructureIngredient;
@@ -12,7 +12,7 @@ import net.minecraft.world.World;
 import java.util.Iterator;
 import java.util.List;
 
-public final class CreativeMachineAssembly implements AdvancedBuilderTask {
+public final class CreativeMachineAssemblyTask implements BuildTask {
 
     private final World world;
     private final BlockPos ctrlPos;
@@ -21,7 +21,7 @@ public final class CreativeMachineAssembly implements AdvancedBuilderTask {
     private final int tickInterval;
     private final int operationsPerTick;
 
-    public CreativeMachineAssembly(World world, BlockPos ctrlPos, EntityPlayer player, StructureIngredient ingredient, int tickInterval, int operationsPerTick) {
+    public CreativeMachineAssemblyTask(World world, BlockPos ctrlPos, EntityPlayer player, StructureIngredient ingredient, int tickInterval, int operationsPerTick) {
         this.world = world;
         this.ctrlPos = ctrlPos;
         this.player = player;
@@ -86,7 +86,7 @@ public final class CreativeMachineAssembly implements AdvancedBuilderTask {
         BlockPos realPos = ctrlPos.add(entry.pos());
         Tuple<?, IBlockState> candidate = entry.ingredientList().get(0);
         if (placeBlock(realPos, candidate.getSecond())) {
-            ConfigurableMachineAssembly.applyTileNbt(world, realPos, candidate.getSecond(), entry.nbt());
+            MachineAssemblyTask.applyTileNbt(world, realPos, candidate.getSecond(), entry.nbt());
         }
         iterator.remove();
     }

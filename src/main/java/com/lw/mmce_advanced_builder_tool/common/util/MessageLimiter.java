@@ -19,7 +19,7 @@ public class MessageLimiter {
         }
         if (!suppressed) {
             suppressed = true;
-            AdvancedBuilderUtils.sendTranslation(player, suppressedMessageKey);
+            StructureIngredients.sendTranslation(player, suppressedMessageKey);
         }
         return false;
     }

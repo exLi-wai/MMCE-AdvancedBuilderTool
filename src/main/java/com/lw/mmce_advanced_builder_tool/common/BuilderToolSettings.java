@@ -1,10 +1,20 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common;
 
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.item.AdvancedBuilderToolItem;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
-public final class AdvancedBuilderConfig {
+/**
+ * The tool's settings, stored as NBT on the {@code AdvancedBuilderToolItem} stack so a player can
+ * keep several builders configured differently.
+ *
+ * <p>Reads and writes are tolerant: every getter returns a sane default when its key is absent, and
+ * writes clamp to the documented range, which is what lets the same accessors serve the client GUI,
+ * the config packet and the server-side task. Legacy keys from the split item/fluid crafting flags
+ * are still honoured on read and cleared on the next write.
+ */
+public final class BuilderToolSettings {
 
     private static final String TAG_USE_AE_ITEMS = "mmce_abt_use_ae_items";
     private static final String TAG_USE_AE_FLUIDS = "mmce_abt_use_ae_fluids";
@@ -20,7 +30,7 @@ public final class AdvancedBuilderConfig {
     public static final int TICK_INTERVAL = 1;
     public static final int OPERATIONS_PER_TICK = 64;
 
-    private AdvancedBuilderConfig() {
+    private BuilderToolSettings() {
     }
 
     public static boolean useAeItems(ItemStack stack) {
@@ -89,7 +99,7 @@ public final class AdvancedBuilderConfig {
     }
 
     public static int clampDynamicLength(int value) {
-        return AdvancedBuilderUtils.clamp(value, 0, MAX_DYNAMIC_LENGTH);
+        return StructureIngredients.clamp(value, 0, MAX_DYNAMIC_LENGTH);
     }
 
     private static String normalizeAttachmentModule(String value) {
@@ -103,6 +113,6 @@ public final class AdvancedBuilderConfig {
     }
 
     private static NBTTagCompound getTag(ItemStack stack) {
-        return AdvancedBuilderUtils.getOrCreateTag(stack);
+        return StructureIngredients.getOrCreateTag(stack);
     }
 }

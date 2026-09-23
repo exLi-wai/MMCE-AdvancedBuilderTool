@@ -1,4 +1,4 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.task;
 
 import hellfirepvp.modularmachinery.common.util.BlockArray;
 import net.minecraft.block.state.IBlockState;
@@ -9,9 +9,9 @@ import net.minecraftforge.fluids.FluidStack;
 
 import java.util.List;
 
-public final class DisassemblyIngredient {
+public final class DisassemblyPlan {
 
-    private DisassemblyIngredient() {
+    private DisassemblyPlan() {
     }
 
     public static final class Plan {

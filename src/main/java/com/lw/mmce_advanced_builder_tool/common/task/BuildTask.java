@@ -1,10 +1,10 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.task;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-public interface AdvancedBuilderTask {
+public interface BuildTask {
 
     default void beginBatch() {}
 

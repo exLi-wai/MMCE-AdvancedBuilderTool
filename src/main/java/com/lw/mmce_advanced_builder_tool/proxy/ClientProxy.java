@@ -1,6 +1,6 @@
 package com.lw.mmce_advanced_builder_tool.proxy;
 
-import com.lw.mmce_advanced_builder_tool.common.registry.AdvancedBuilderItems;
+import com.lw.mmce_advanced_builder_tool.common.registry.BuilderToolRegistry;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraftforge.client.event.ModelRegistryEvent;
 import net.minecraftforge.client.model.ModelLoader;
@@ -29,7 +29,7 @@ public class ClientProxy extends CommonProxy {
 
     @SubscribeEvent
     public void registerModels(ModelRegistryEvent event) {
-        ModelLoader.setCustomModelResourceLocation(AdvancedBuilderItems.ADVANCED_BUILDER_TOOL, 0,
-                new ModelResourceLocation(Objects.requireNonNull(AdvancedBuilderItems.ADVANCED_BUILDER_TOOL.getRegistryName()), "inventory"));
+        ModelLoader.setCustomModelResourceLocation(BuilderToolRegistry.ADVANCED_BUILDER_TOOL, 0,
+                new ModelResourceLocation(Objects.requireNonNull(BuilderToolRegistry.ADVANCED_BUILDER_TOOL.getRegistryName()), "inventory"));
     }
 }

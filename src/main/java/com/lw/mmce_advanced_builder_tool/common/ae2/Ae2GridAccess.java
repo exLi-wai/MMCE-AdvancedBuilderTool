@@ -1,4 +1,4 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.ae2;
 
 import appeng.api.AEApi;
 import appeng.api.config.Actionable;
@@ -25,9 +25,11 @@ import appeng.util.item.AEItemStack;
 import baubles.api.BaublesApi;
 import baubles.api.cap.IBaublesItemHandler;
 import com.glodblock.github.common.item.fake.FakeFluids;
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderMessages;
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.task.CraftingConfirmBridge;
+import com.lw.mmce_advanced_builder_tool.common.task.CraftingRequester;
+import com.lw.mmce_advanced_builder_tool.common.util.MessageKeys;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
@@ -39,12 +41,32 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public final class Ae2AssemblyExtractor {
+/**
+ * The only place that talks to Applied Energistics. Everything the builder needs from AE goes
+ * through here: locating usable wireless terminals, checking grid permissions, extracting and
+ * inserting items/fluids, reading stored amounts, probing whether a craft is possible, and driving
+ * the crafting-confirm GUI.
+ *
+ * <p>Access model: a request is offered to one accessible terminal at a time and the first terminal
+ * that can serve it wins; terminals that are out of range, inactive, belong to a network the player
+ * has no permission on, or lack the storage/crafting cache are skipped silently. Nothing here sends
+ * chat messages directly - diagnostics are throttled through {@link #sendDiagnostic} so a stalled
+ * build cannot spam the player.
+ *
+ * <p>Two entry points exist per operation:
+ * <ul>
+ *   <li>{@code *Silently} / {@code *Crafted*} - used by the per-block build loop, where a failure is
+ *       expected and is reported later as a missing-material summary;</li>
+ *   <li>the same call without the suffix - identical work, kept as the descriptive form at call
+ *       sites that are not part of a tight loop.</li>
+ * </ul>
+ */
+public final class Ae2GridAccess {
 
     private static final int DIAGNOSTIC_INTERVAL_TICKS = 100;
     private static final int CRAFTING_JOB_TIMEOUT_MILLIS = 50;
 
-    private Ae2AssemblyExtractor() {
+    private Ae2GridAccess() {
     }
 
     public static boolean extractCraftedItem(EntityPlayer player, ItemStack required) {
@@ -91,10 +113,7 @@ public final class Ae2AssemblyExtractor {
             if (extracted != null && extracted.getStackSize() > 0) {
                 IAEItemStack leftover = Platform.poweredInsert(terminal.guiObject, monitor, extracted.copy(), new PlayerSource(player, terminal.guiObject), Actionable.MODULATE);
                 if (leftover != null && leftover.getStackSize() > 0) {
-                    ItemStack remainder = leftover.createItemStack();
-                    if (!player.inventory.addItemStackToInventory(remainder) && !remainder.isEmpty()) {
-                        player.dropItem(remainder, false);
-                    }
+                    StructureIngredients.giveOrDrop(player, leftover.createItemStack());
                 }
                 terminal.guiObject.saveChanges();
             }
@@ -403,7 +422,7 @@ public final class Ae2AssemblyExtractor {
         return new CraftingAmountProbe(player, request, maxAmount);
     }
 
-    public static CraftingGuiRequest openCraftConfirmGui(EntityPlayer player, IAEItemStack request, AdvancedBuilderCraftingRequester requester) {
+    public static CraftingGuiRequest openCraftConfirmGui(EntityPlayer player, IAEItemStack request, CraftingRequester requester) {
         if (request == null || request.getStackSize() <= 0) {
             return null;
         }
@@ -437,8 +456,8 @@ public final class Ae2AssemblyExtractor {
                     ContainerCraftConfirm confirm = (ContainerCraftConfirm) openContainer;
                     confirm.setAutoStart(false);
                     confirm.setJob(futureJob);
-                    if (requester != null && confirm instanceof AdvancedBuilderCraftingConfirmBridge) {
-                        ((AdvancedBuilderCraftingConfirmBridge) confirm).abt$setRequester(requester);
+                    if (requester != null && confirm instanceof CraftingConfirmBridge) {
+                        ((CraftingConfirmBridge) confirm).abt$setRequester(requester);
                     }
                     terminal.guiObject.saveChanges();
                     sendDiagnostic(player, "message.mmce_advanced_builder_tool.ae_craft_requested");
@@ -528,11 +547,11 @@ public final class Ae2AssemblyExtractor {
 
     private static void sendDiagnostic(EntityPlayer player, String key) {
         long now = player.world.getTotalWorldTime();
-        if (now - player.getEntityData().getLong(AdvancedBuilderMessages.LAST_AE_DIAGNOSTIC_TAG) < DIAGNOSTIC_INTERVAL_TICKS) {
+        if (now - player.getEntityData().getLong(MessageKeys.LAST_AE_DIAGNOSTIC_TAG) < DIAGNOSTIC_INTERVAL_TICKS) {
             return;
         }
-        player.getEntityData().setLong(AdvancedBuilderMessages.LAST_AE_DIAGNOSTIC_TAG, now);
-        AdvancedBuilderUtils.sendTranslation(player, key);
+        player.getEntityData().setLong(MessageKeys.LAST_AE_DIAGNOSTIC_TAG, now);
+        StructureIngredients.sendTranslation(player, key);
     }
 
     private static final class WirelessTerminalAccess {

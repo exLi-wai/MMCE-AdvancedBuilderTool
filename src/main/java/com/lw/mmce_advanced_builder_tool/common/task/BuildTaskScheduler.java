@@ -1,6 +1,6 @@
-package com.lw.mmce_advanced_builder_tool.common.integration.mmce;
+package com.lw.mmce_advanced_builder_tool.common.task;
 
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -15,20 +15,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class AdvancedBuilderTaskManager {
+public class BuildTaskScheduler {
 
     private static final long CLEANUP_GRACE_TICKS = 100L;
 
-    private static final List<AdvancedBuilderTask> TASKS = new ArrayList<>();
-    private static final Map<AdvancedBuilderTask, Long> NEXT_RUN_TICK = new IdentityHashMap<>();
-    private static final Map<AdvancedBuilderTask, Long> NEXT_CLEANUP_TICK = new IdentityHashMap<>();
+    private static final List<BuildTask> TASKS = new ArrayList<>();
+    private static final Map<BuildTask, Long> NEXT_RUN_TICK = new IdentityHashMap<>();
+    private static final Map<BuildTask, Long> NEXT_CLEANUP_TICK = new IdentityHashMap<>();
 
-    public static void addTask(AdvancedBuilderTask task) {
+    public static void addTask(BuildTask task) {
         TASKS.add(task);
     }
 
     public static boolean hasTask(World world, BlockPos pos) {
-        for (AdvancedBuilderTask task : TASKS) {
+        for (BuildTask task : TASKS) {
             if (task.getWorld() == world && task.getCtrlPos().equals(pos)) {
                 return true;
             }
@@ -39,9 +39,9 @@ public class AdvancedBuilderTaskManager {
     public static boolean cancelPlayerTask(EntityPlayer player) {
         UUID playerId = player.getGameProfile().getId();
         boolean cancelled = false;
-        Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
+        Iterator<BuildTask> iterator = TASKS.iterator();
         while (iterator.hasNext()) {
-            AdvancedBuilderTask task = iterator.next();
+            BuildTask task = iterator.next();
             if (task.getWorld() != player.world || task.getPlayer() == null) {
                 continue;
             }
@@ -51,7 +51,7 @@ public class AdvancedBuilderTaskManager {
             task.cancel();
             removeTask(task, iterator);
             task.report();
-            AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+            StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
             cancelled = true;
         }
         return cancelled;
@@ -66,14 +66,14 @@ public class AdvancedBuilderTaskManager {
 
         long worldTime = player.world.getTotalWorldTime();
         UUID playerId = player.getGameProfile().getId();
-        Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
+        Iterator<BuildTask> iterator = TASKS.iterator();
         while (iterator.hasNext()) {
-            AdvancedBuilderTask task = iterator.next();
+            BuildTask task = iterator.next();
             if (task.getWorld() != player.world || task.getPlayer() == null) {
                 if (isCleanupDue(task, worldTime)) {
                     task.cancel();
                     removeTask(task, iterator);
-                    AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+                    StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
                 }
                 continue;
             }
@@ -83,13 +83,13 @@ public class AdvancedBuilderTaskManager {
             if (task.isControllerInvalid()) {
                 removeTask(task, iterator);
                 task.report();
-                AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+                StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
             if (task.isCancelled()) {
                 removeTask(task, iterator);
                 task.report();
-                AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+                StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
             if (!isRunDue(task, worldTime)) {
@@ -109,18 +109,18 @@ public class AdvancedBuilderTaskManager {
             if (task.isCancelled()) {
                 removeTask(task, iterator);
                 task.report();
-                AdvancedBuilderUtils.sendTranslation(player, task.getCancelledMessageKey());
+                StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
                 continue;
             }
             if (task.isCompleted()) {
                 removeTask(task, iterator);
                 task.report();
-                AdvancedBuilderUtils.sendTranslation(player, task.getSuccessMessageKey());
+                StructureIngredients.sendTranslation(player, task.getSuccessMessageKey());
             }
         }
     }
 
-    private static boolean isRunDue(AdvancedBuilderTask task, long worldTime) {
+    private static boolean isRunDue(BuildTask task, long worldTime) {
         Long nextRun = NEXT_RUN_TICK.get(task);
         if (nextRun == null) {
             nextRun = worldTime;
@@ -132,7 +132,7 @@ public class AdvancedBuilderTaskManager {
         return true;
     }
 
-    private static boolean isCleanupDue(AdvancedBuilderTask task, long worldTime) {
+    private static boolean isCleanupDue(BuildTask task, long worldTime) {
         long interval = Math.max(1, task.getTickInterval());
         Long nextCleanup = NEXT_CLEANUP_TICK.get(task);
         if (nextCleanup == null) {
@@ -146,12 +146,12 @@ public class AdvancedBuilderTaskManager {
         return true;
     }
 
-    private static void removeTask(AdvancedBuilderTask task, Iterator<AdvancedBuilderTask> iterator) {
+    private static void removeTask(BuildTask task, Iterator<BuildTask> iterator) {
         clearSchedule(task);
         iterator.remove();
     }
 
-    private static void clearSchedule(AdvancedBuilderTask task) {
+    private static void clearSchedule(BuildTask task) {
         NEXT_RUN_TICK.remove(task);
         NEXT_CLEANUP_TICK.remove(task);
     }
@@ -159,9 +159,9 @@ public class AdvancedBuilderTaskManager {
     @SubscribeEvent
     public void onPlayerLogOut(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID playerId = event.player.getGameProfile().getId();
-        Iterator<AdvancedBuilderTask> iterator = TASKS.iterator();
+        Iterator<BuildTask> iterator = TASKS.iterator();
         while (iterator.hasNext()) {
-            AdvancedBuilderTask task = iterator.next();
+            BuildTask task = iterator.next();
             if (task.getPlayer() != null && playerId.equals(task.getPlayer().getGameProfile().getId())) {
                 task.cancel();
                 removeTask(task, iterator);

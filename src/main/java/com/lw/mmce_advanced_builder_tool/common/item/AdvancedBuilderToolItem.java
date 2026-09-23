@@ -1,4 +1,4 @@
-package com.lw.mmce_advanced_builder_tool.common.items;
+package com.lw.mmce_advanced_builder_tool.common.item;
 
 import com.cleanroommc.modularui.api.IGuiHolder;
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -21,12 +21,12 @@ import com.cleanroommc.modularui.widgets.slot.ModularSlot;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import com.lw.mmce_advanced_builder_tool.Tags;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderConfig;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderService;
-import com.lw.mmce_advanced_builder_tool.common.integration.mmce.AdvancedBuilderTaskManager;
-import com.lw.mmce_advanced_builder_tool.common.network.AdvancedBuilderNetwork;
-import com.lw.mmce_advanced_builder_tool.common.network.PacketBuilderConfig;
-import com.lw.mmce_advanced_builder_tool.common.util.AdvancedBuilderUtils;
+import com.lw.mmce_advanced_builder_tool.common.BuilderToolSettings;
+import com.lw.mmce_advanced_builder_tool.common.BuilderToolService;
+import com.lw.mmce_advanced_builder_tool.common.task.BuildTaskScheduler;
+import com.lw.mmce_advanced_builder_tool.common.network.BuilderNetwork;
+import com.lw.mmce_advanced_builder_tool.common.network.BuilderConfigPacket;
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
@@ -62,7 +62,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
     @Override
     public @NotNull ActionResult<ItemStack> onItemRightClick(World world, @NotNull EntityPlayer player, @NotNull EnumHand hand) {
         if (!world.isRemote && player.isSneaking()) {
-            AdvancedBuilderTaskManager.cancelPlayerTask(player);
+            BuildTaskScheduler.cancelPlayerTask(player);
         }
         if (world.isRemote && !player.isSneaking()) {
             GuiFactories.playerInventory().openFromHandClient(hand);
@@ -76,18 +76,18 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
             return EnumActionResult.PASS;
         }
         if (!world.isRemote && player instanceof EntityPlayerMP) {
-            if (AdvancedBuilderTaskManager.cancelPlayerTask(player)) {
+            if (BuildTaskScheduler.cancelPlayerTask(player)) {
                 return EnumActionResult.SUCCESS;
             }
             ItemStack stack = player.getHeldItem(hand);
             try {
-                AdvancedBuilderService.start((EntityPlayerMP) player, pos, AdvancedBuilderConfig.useAeItems(stack),
-                        AdvancedBuilderConfig.useAeFluids(stack), AdvancedBuilderConfig.craftMissing(stack), AdvancedBuilderConfig.disassembleMode(stack),
-                        AdvancedBuilderConfig.dynamicLength(stack), AdvancedBuilderConfig.attachmentModule(stack),
-                        AdvancedBuilderConfig.TICK_INTERVAL, AdvancedBuilderConfig.OPERATIONS_PER_TICK);
+                BuilderToolService.start((EntityPlayerMP) player, pos, BuilderToolSettings.useAeItems(stack),
+                        BuilderToolSettings.useAeFluids(stack), BuilderToolSettings.craftMissing(stack), BuilderToolSettings.disassembleMode(stack),
+                        BuilderToolSettings.dynamicLength(stack), BuilderToolSettings.attachmentModule(stack),
+                        BuilderToolSettings.TICK_INTERVAL, BuilderToolSettings.OPERATIONS_PER_TICK);
             } catch (RuntimeException | LinkageError error) {
                 MMCEAdvancedBuilderTool.LOGGER.error("Failed to run the MMCE structure builder", error);
-                AdvancedBuilderUtils.sendTranslation(player, "message.mmce_advanced_builder_tool.failed");
+                StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.failed");
             }
         }
         return EnumActionResult.SUCCESS;
@@ -115,48 +115,48 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
         panel.child(Flow.column().margin(7).widthRel(1f).heightRel(1f)
                 .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.title")).height(12).widthRel(1f))
                 .child(row("gui.mmce_advanced_builder_tool.disassemble_mode", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.disassembleMode(currentStack(inventoryData)), val -> {
+                        .value(SyncHandlers.bool(() -> BuilderToolSettings.disassembleMode(currentStack(inventoryData)), val -> {
                             ItemStack stack = currentStack(inventoryData);
-                            AdvancedBuilderConfig.setDisassembleMode(stack, val);
+                            BuilderToolSettings.setDisassembleMode(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
                         .size(18, 18)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_items", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeItems(currentStack(inventoryData)), val -> {
+                        .value(SyncHandlers.bool(() -> BuilderToolSettings.useAeItems(currentStack(inventoryData)), val -> {
                             ItemStack stack = currentStack(inventoryData);
-                            AdvancedBuilderConfig.setUseAeItems(stack, val);
+                            BuilderToolSettings.setUseAeItems(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
                         .size(18, 18)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_fluids", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.useAeFluids(currentStack(inventoryData)), val -> {
+                        .value(SyncHandlers.bool(() -> BuilderToolSettings.useAeFluids(currentStack(inventoryData)), val -> {
                             ItemStack stack = currentStack(inventoryData);
-                            AdvancedBuilderConfig.setUseAeFluids(stack, val);
+                            BuilderToolSettings.setUseAeFluids(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
                         .size(18, 18)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.craft_missing", new ToggleButton()
-                        .value(SyncHandlers.bool(() -> AdvancedBuilderConfig.craftMissing(currentStack(inventoryData)), val -> {
+                        .value(SyncHandlers.bool(() -> BuilderToolSettings.craftMissing(currentStack(inventoryData)), val -> {
                             ItemStack stack = currentStack(inventoryData);
-                            AdvancedBuilderConfig.setCraftMissing(stack, val);
+                            BuilderToolSettings.setCraftMissing(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
                         .size(18, 18)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.dynamic_length", new TextFieldWidget()
-                        .value(SyncHandlers.string(() -> String.valueOf(AdvancedBuilderConfig.dynamicLength(currentStack(inventoryData))), val -> {
+                        .value(SyncHandlers.string(() -> String.valueOf(BuilderToolSettings.dynamicLength(currentStack(inventoryData))), val -> {
                             ItemStack stack = currentStack(inventoryData);
                             try {
-                                AdvancedBuilderConfig.setDynamicLength(stack, Integer.parseInt(val));
+                                BuilderToolSettings.setDynamicLength(stack, Integer.parseInt(val));
                             } catch (NumberFormatException ignored) {
-                                AdvancedBuilderConfig.setDynamicLength(stack, 1);
+                                BuilderToolSettings.setDynamicLength(stack, 1);
                             }
                             syncConfigToServer(inventoryData, stack);
                         }))
@@ -165,9 +165,9 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         .width(50).height(18)))
                 .childIf(Mods.MMCE_COMPLEMENT.isLoading(),
                         () -> row("gui.mmce_advanced_builder_tool.attachment_module", new TextFieldWidget()
-                                .value(SyncHandlers.string(() -> AdvancedBuilderConfig.attachmentModule(currentStack(inventoryData)), val -> {
+                                .value(SyncHandlers.string(() -> BuilderToolSettings.attachmentModule(currentStack(inventoryData)), val -> {
                                     ItemStack stack = currentStack(inventoryData);
-                                    AdvancedBuilderConfig.setAttachmentModule(stack, val);
+                                    BuilderToolSettings.setAttachmentModule(stack, val);
                                     syncConfigToServer(inventoryData, stack);
                                 }))
                                 .background(GuiTextures.DISPLAY_SMALL)
@@ -202,25 +202,25 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
         if (!data.getPlayer().world.isRemote) {
             return;
         }
-        AdvancedBuilderNetwork.CHANNEL.sendToServer(new PacketBuilderConfig(data.getSlotIndex(),
-                AdvancedBuilderConfig.useAeItems(stack),
-                AdvancedBuilderConfig.useAeFluids(stack),
-                AdvancedBuilderConfig.craftMissing(stack),
-                AdvancedBuilderConfig.disassembleMode(stack),
-                AdvancedBuilderConfig.dynamicLength(stack),
-                AdvancedBuilderConfig.attachmentModule(stack)));
+        BuilderNetwork.CHANNEL.sendToServer(new BuilderConfigPacket(data.getSlotIndex(),
+                BuilderToolSettings.useAeItems(stack),
+                BuilderToolSettings.useAeFluids(stack),
+                BuilderToolSettings.craftMissing(stack),
+                BuilderToolSettings.disassembleMode(stack),
+                BuilderToolSettings.dynamicLength(stack),
+                BuilderToolSettings.attachmentModule(stack)));
     }
 
     @Override
     public void addInformation(@NotNull ItemStack stack, @Nullable World worldIn, List<String> tooltip, @NotNull ITooltipFlag flagIn) {
         tooltip.add(I18n.translateToLocal("tooltip.mmce_advanced_builder_tool.1"));
-        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.2", AdvancedBuilderConfig.useAeItems(stack) ? "True" : "False"));
-        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.3", AdvancedBuilderConfig.useAeFluids(stack) ? "True" : "False"));
-        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.4", AdvancedBuilderConfig.dynamicLength(stack)));
-        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.5", AdvancedBuilderConfig.disassembleMode(stack) ? "True" : "False"));
-        if (Mods.MMCE_COMPLEMENT.isLoading() && !AdvancedBuilderConfig.attachmentModule(stack).isEmpty()) {
+        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.2", BuilderToolSettings.useAeItems(stack) ? "True" : "False"));
+        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.3", BuilderToolSettings.useAeFluids(stack) ? "True" : "False"));
+        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.4", BuilderToolSettings.dynamicLength(stack)));
+        tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.5", BuilderToolSettings.disassembleMode(stack) ? "True" : "False"));
+        if (Mods.MMCE_COMPLEMENT.isLoading() && !BuilderToolSettings.attachmentModule(stack).isEmpty()) {
             tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.7",
-                    AdvancedBuilderConfig.attachmentModule(stack)));
+                    BuilderToolSettings.attachmentModule(stack)));
         }
         tooltip.add(I18n.translateToLocal("tooltip.mmce_advanced_builder_tool.6"));
     }
