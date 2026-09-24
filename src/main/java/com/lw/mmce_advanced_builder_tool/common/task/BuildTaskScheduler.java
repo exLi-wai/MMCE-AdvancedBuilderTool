@@ -17,11 +17,8 @@ import java.util.UUID;
 
 public class BuildTaskScheduler {
 
-    private static final long CLEANUP_GRACE_TICKS = 100L;
-
     private static final List<BuildTask> TASKS = new ArrayList<>();
     private static final Map<BuildTask, Long> NEXT_RUN_TICK = new IdentityHashMap<>();
-    private static final Map<BuildTask, Long> NEXT_CLEANUP_TICK = new IdentityHashMap<>();
 
     public static void addTask(BuildTask task) {
         TASKS.add(task);
@@ -70,11 +67,6 @@ public class BuildTaskScheduler {
         while (iterator.hasNext()) {
             BuildTask task = iterator.next();
             if (task.getWorld() != player.world || task.getPlayer() == null) {
-                if (isCleanupDue(task, worldTime)) {
-                    task.cancel();
-                    removeTask(task, iterator);
-                    StructureIngredients.sendTranslation(player, task.getCancelledMessageKey());
-                }
                 continue;
             }
             if (!playerId.equals(task.getPlayer().getGameProfile().getId())) {
@@ -132,20 +124,6 @@ public class BuildTaskScheduler {
         return true;
     }
 
-    private static boolean isCleanupDue(BuildTask task, long worldTime) {
-        long interval = Math.max(1, task.getTickInterval());
-        Long nextCleanup = NEXT_CLEANUP_TICK.get(task);
-        if (nextCleanup == null) {
-            NEXT_CLEANUP_TICK.put(task, worldTime + CLEANUP_GRACE_TICKS);
-            return false;
-        }
-        if (worldTime < nextCleanup) {
-            return false;
-        }
-        NEXT_CLEANUP_TICK.put(task, worldTime + interval);
-        return true;
-    }
-
     private static void removeTask(BuildTask task, Iterator<BuildTask> iterator) {
         clearSchedule(task);
         iterator.remove();
@@ -153,7 +131,6 @@ public class BuildTaskScheduler {
 
     private static void clearSchedule(BuildTask task) {
         NEXT_RUN_TICK.remove(task);
-        NEXT_CLEANUP_TICK.remove(task);
     }
 
     @SubscribeEvent

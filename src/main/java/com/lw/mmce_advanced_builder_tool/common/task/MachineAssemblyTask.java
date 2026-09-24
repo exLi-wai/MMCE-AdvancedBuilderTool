@@ -329,14 +329,12 @@ public class MachineAssemblyTask extends MachineAssembly implements BuildTask, C
 
     private boolean placeAssemblyBlock(BlockPos realPos, IBlockState state) {
         IBlockState original = getWorld().getBlockState(realPos);
-        getWorld().setBlockState(realPos, state);
         BlockEvent.PlaceEvent event = new BlockEvent.PlaceEvent(new BlockSnapshot(getWorld(), realPos, state), original, getPlayer(), EnumHand.MAIN_HAND);
         MinecraftForge.EVENT_BUS.post(event);
         if (event.isCanceled()) {
-            getWorld().setBlockState(realPos, original);
             return false;
         }
-        return true;
+        return getWorld().setBlockState(realPos, state);
     }
 
     private Tuple<ItemStack, IBlockState> consumeFirstAvailableItem(BlockPos relativePos, List<Tuple<ItemStack, IBlockState>> candidates) {

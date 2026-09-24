@@ -1,5 +1,6 @@
 package com.lw.mmce_advanced_builder_tool.common.task;
 
+import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
 import ink.ikx.mmce.common.utils.StructureIngredient;
 import net.minecraft.block.state.IBlockState;
@@ -7,7 +8,11 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.Tuple;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.EnumHand;
 import net.minecraft.world.World;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.common.util.BlockSnapshot;
 
 import java.util.Iterator;
 import java.util.List;
@@ -105,7 +110,15 @@ public final class CreativeMachineAssemblyTask implements BuildTask {
     }
 
     private boolean placeBlock(BlockPos realPos, IBlockState state) {
-        return state != null && world.setBlockState(realPos, state);
+        if (state == null || world.isOutsideBuildHeight(realPos)
+                || !StructureIngredients.isReplaceableForAssembly(world, realPos)) {
+            return false;
+        }
+        IBlockState original = world.getBlockState(realPos);
+        BlockEvent.PlaceEvent event = new BlockEvent.PlaceEvent(
+                new BlockSnapshot(world, realPos, state), original, player, EnumHand.MAIN_HAND);
+        MinecraftForge.EVENT_BUS.post(event);
+        return !event.isCanceled() && world.setBlockState(realPos, state);
     }
 
     @Override

@@ -153,6 +153,7 @@ public class MachineDisassemblyTask implements BuildTask {
         }
         List<ItemStack> nativeDrops = breakItemBlock(realPos);
         if (nativeDrops == null) {
+            iterator.remove();
             return;
         }
 
