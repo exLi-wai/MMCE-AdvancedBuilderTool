@@ -162,7 +162,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
             }
         }
         if (pages > 1) {
-            Flow pager = Flow.row().widthRel(1f).height(ROW_HEIGHT).collapseDisabledChild();
+            Flow pager = Flow.row().widthRel(1f).height(ROW_HEIGHT).collapseDisabledChild()
+                    .setEnabledIf(widget -> state().expanded == null);
             pager.child(button("<")
                     .width(ROW_HEIGHT).setEnabledIf(widget -> state().expanded == null && state().aliasPage > 0)
                     .onMouseTapped(mouseButton -> {
@@ -177,7 +178,7 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                         state().aliasPage++;
                         return true;
                     }));
-            column.child(pager.setEnabledIf(widget -> state().expanded == null));
+            column.child(pager);
         }
     }
 
@@ -239,7 +240,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                 .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.variables.all"))
                         .width(CONTENT_WIDTH - CELL_SIZE).height(CELL_SIZE)
                         .alignment(Alignment.Center)
-                        .setEnabledIf(widget -> state().expanded == null)));
+                        .setEnabledIf(widget -> state().expanded == null))
+                .setEnabledIf(widget -> state().expanded == null));
     }
 
     private void buildSkipExistingRow(Flow column) {
@@ -260,7 +262,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                             state().skipExistingBlocks = !state().skipExistingBlocks;
                             skipExistingHandler.accept(state().skipExistingBlocks);
                             return true;
-                        })));
+                        }))
+                .setEnabledIf(widget -> state().expanded == null));
     }
 
     @Override
