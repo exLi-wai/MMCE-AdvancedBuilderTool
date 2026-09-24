@@ -1035,4 +1035,3 @@ public class MachineAssemblyTask extends MachineAssembly implements BuildTask, C
         return activeCraftGuiEntry == entry || activeCraftAmountEntry == entry;
     }
 }
-

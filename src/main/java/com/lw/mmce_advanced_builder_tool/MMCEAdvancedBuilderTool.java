@@ -4,7 +4,6 @@ import com.lw.mmce_advanced_builder_tool.common.network.BuilderNetwork;
 import com.lw.mmce_advanced_builder_tool.common.registry.BuilderToolRegistry;
 import com.lw.mmce_advanced_builder_tool.common.registry.ModGuiFactories;
 import com.lw.mmce_advanced_builder_tool.common.task.BuildTaskScheduler;
-import com.lw.mmce_advanced_builder_tool.proxy.ClientProxy;
 import com.lw.mmce_advanced_builder_tool.proxy.CommonProxy;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;

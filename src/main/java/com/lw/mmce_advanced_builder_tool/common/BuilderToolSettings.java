@@ -1,9 +1,13 @@
 package com.lw.mmce_advanced_builder_tool.common;
 
-import com.lw.mmce_advanced_builder_tool.common.item.AdvancedBuilderToolItem;
 import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraftforge.common.util.Constants;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * The tool's settings, stored as NBT on the {@code AdvancedBuilderToolItem} stack so a player can
@@ -24,7 +28,11 @@ public final class BuilderToolSettings {
     private static final String TAG_LEGACY_CRAFT_MISSING_FLUIDS = "mmce_abt_craft_missing_fluids";
     private static final String TAG_DYNAMIC_LENGTH = "mmce_abt_dynamic_length";
     private static final String TAG_ATTACHMENT_MODULE = "mmce_abt_attachment_module";
+    private static final String TAG_VARIABLES = "mmce_abt_variables";
+    private static final String TAG_SKIP_EXISTING_BLOCKS = "mmce_abt_skip_existing_blocks";
     private static final int MAX_ATTACHMENT_MODULE_LENGTH = 256;
+    private static final int MAX_VARIABLE_NAME_LENGTH = 64;
+    private static final int MAX_VARIABLE_VALUE_LENGTH = 128;
     private static final int DEFAULT_DYNAMIC_LENGTH = 1;
     private static final int MAX_DYNAMIC_LENGTH = 4096;
     public static final int TICK_INTERVAL = 1;
@@ -100,6 +108,83 @@ public final class BuilderToolSettings {
 
     public static int clampDynamicLength(int value) {
         return StructureIngredients.clamp(value, 0, MAX_DYNAMIC_LENGTH);
+    }
+
+    public static Map<String, String> variables(ItemStack stack) {
+        NBTTagCompound tag = getTag(stack);
+        if (!tag.hasKey(TAG_VARIABLES, Constants.NBT.TAG_COMPOUND)) {
+            return Collections.emptyMap();
+        }
+        NBTTagCompound stored = tag.getCompoundTag(TAG_VARIABLES);
+        Map<String, String> selections = new LinkedHashMap<>();
+        for (String key : stored.getKeySet()) {
+            String value = stored.getString(key);
+            if (!key.isEmpty() && !value.isEmpty()) {
+                selections.put(key, value);
+            }
+        }
+        return Collections.unmodifiableMap(selections);
+    }
+
+    public static String variable(ItemStack stack, String variable) {
+        if (variable == null || variable.isEmpty()) {
+            return "";
+        }
+        NBTTagCompound tag = getTag(stack);
+        if (!tag.hasKey(TAG_VARIABLES, Constants.NBT.TAG_COMPOUND)) {
+            return "";
+        }
+        return normalizeVariableValue(tag.getCompoundTag(TAG_VARIABLES).getString(variable));
+    }
+
+    public static void setVariable(ItemStack stack, String variable, String value) {
+        String key = normalizeVariableName(variable);
+        if (key.isEmpty()) {
+            return;
+        }
+        NBTTagCompound tag = getTag(stack);
+        NBTTagCompound stored = tag.hasKey(TAG_VARIABLES, Constants.NBT.TAG_COMPOUND)
+                ? tag.getCompoundTag(TAG_VARIABLES)
+                : new NBTTagCompound();
+        String normalized = normalizeVariableValue(value);
+        if (normalized.isEmpty()) {
+            stored.removeTag(key);
+        } else {
+            stored.setString(key, normalized);
+        }
+        if (stored.getKeySet().isEmpty()) {
+            tag.removeTag(TAG_VARIABLES);
+        } else {
+            tag.setTag(TAG_VARIABLES, stored);
+        }
+    }
+
+    public static void clearVariables(ItemStack stack) {
+        getTag(stack).removeTag(TAG_VARIABLES);
+    }
+
+    public static boolean skipExistingBlocks(ItemStack stack) {
+        return getTag(stack).getBoolean(TAG_SKIP_EXISTING_BLOCKS);
+    }
+
+    public static void setSkipExistingBlocks(ItemStack stack, boolean value) {
+        getTag(stack).setBoolean(TAG_SKIP_EXISTING_BLOCKS, value);
+    }
+
+    private static String normalizeVariableName(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        return normalized.length() <= MAX_VARIABLE_NAME_LENGTH ? normalized : "";
+    }
+
+    private static String normalizeVariableValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        return normalized.length() <= MAX_VARIABLE_VALUE_LENGTH ? normalized : "";
     }
 
     private static String normalizeAttachmentModule(String value) {

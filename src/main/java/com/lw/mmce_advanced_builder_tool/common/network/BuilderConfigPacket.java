@@ -19,12 +19,14 @@ public class BuilderConfigPacket implements IMessage, IMessageHandler<BuilderCon
     private boolean disassembleMode;
     private int dynamicLength;
     private String attachmentModule;
+    private boolean skipExistingBlocks;
 
     public BuilderConfigPacket() {
     }
 
     public BuilderConfigPacket(int slot, boolean useAeItems, boolean useAeFluids, boolean craftMissing,
-                               boolean disassembleMode, int dynamicLength, String attachmentModule) {
+                               boolean disassembleMode, int dynamicLength, String attachmentModule,
+                               boolean skipExistingBlocks) {
         this.slot = slot;
         this.useAeItems = useAeItems;
         this.useAeFluids = useAeFluids;
@@ -32,6 +34,7 @@ public class BuilderConfigPacket implements IMessage, IMessageHandler<BuilderCon
         this.disassembleMode = disassembleMode;
         this.dynamicLength = dynamicLength;
         this.attachmentModule = attachmentModule;
+        this.skipExistingBlocks = skipExistingBlocks;
     }
 
     @Override
@@ -43,6 +46,7 @@ public class BuilderConfigPacket implements IMessage, IMessageHandler<BuilderCon
         disassembleMode = buf.readBoolean();
         dynamicLength = buf.readInt();
         attachmentModule = ByteBufUtils.readUTF8String(buf);
+        skipExistingBlocks = buf.readBoolean();
     }
 
     @Override
@@ -54,6 +58,7 @@ public class BuilderConfigPacket implements IMessage, IMessageHandler<BuilderCon
         buf.writeBoolean(disassembleMode);
         buf.writeInt(dynamicLength);
         ByteBufUtils.writeUTF8String(buf, attachmentModule == null ? "" : attachmentModule);
+        buf.writeBoolean(skipExistingBlocks);
     }
 
     @Override
@@ -77,6 +82,7 @@ public class BuilderConfigPacket implements IMessage, IMessageHandler<BuilderCon
         BuilderToolSettings.setDisassembleMode(stack, message.disassembleMode);
         BuilderToolSettings.setDynamicLength(stack, message.dynamicLength);
         BuilderToolSettings.setAttachmentModule(stack, message.attachmentModule);
+        BuilderToolSettings.setSkipExistingBlocks(stack, message.skipExistingBlocks);
     }
 
 }

@@ -13,5 +13,6 @@ public final class BuilderNetwork {
 
     public static void init() {
         CHANNEL.registerMessage(BuilderConfigPacket.class, BuilderConfigPacket.class, packetId++, Side.SERVER);
+        CHANNEL.registerMessage(VariableSelectionPacket.class, VariableSelectionPacket.class, packetId++, Side.SERVER);
     }
 }

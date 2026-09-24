@@ -1,7 +1,6 @@
 package com.lw.mmce_advanced_builder_tool.common.registry;
 
 import com.lw.mmce_advanced_builder_tool.common.item.AdvancedBuilderToolItem;
-import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;

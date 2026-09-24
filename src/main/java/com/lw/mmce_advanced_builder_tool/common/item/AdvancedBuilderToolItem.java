@@ -14,6 +14,7 @@ import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.value.sync.SyncHandlers;
 import com.cleanroommc.modularui.widget.Widget;
+import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.ToggleButton;
 import com.cleanroommc.modularui.widgets.layout.Flow;
@@ -26,8 +27,10 @@ import com.lw.mmce_advanced_builder_tool.common.BuilderToolService;
 import com.lw.mmce_advanced_builder_tool.common.task.BuildTaskScheduler;
 import com.lw.mmce_advanced_builder_tool.common.network.BuilderNetwork;
 import com.lw.mmce_advanced_builder_tool.common.network.BuilderConfigPacket;
+import com.lw.mmce_advanced_builder_tool.common.network.VariableSelectionPacket;
 import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
+import com.lw.mmce_advanced_builder_tool.common.variable.BlockVariablePickerScreen;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
@@ -47,10 +50,12 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 
 public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData> {
 
     public static final String REGISTRY_NAME = "advanced_builder_tool";
+    private static final int PANEL_HEIGHT = 190;
 
     public AdvancedBuilderToolItem() {
         setTranslationKey(Tags.MOD_ID + "." + REGISTRY_NAME);
@@ -84,6 +89,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                 BuilderToolService.start((EntityPlayerMP) player, pos, BuilderToolSettings.useAeItems(stack),
                         BuilderToolSettings.useAeFluids(stack), BuilderToolSettings.craftMissing(stack), BuilderToolSettings.disassembleMode(stack),
                         BuilderToolSettings.dynamicLength(stack), BuilderToolSettings.attachmentModule(stack),
+                        BuilderToolSettings.skipExistingBlocks(stack),
                         BuilderToolSettings.TICK_INTERVAL, BuilderToolSettings.OPERATIONS_PER_TICK);
             } catch (RuntimeException | LinkageError error) {
                 MMCEAdvancedBuilderTool.LOGGER.error("Failed to run the MMCE structure builder", error);
@@ -111,7 +117,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                     : new ModularSlot(inv, index));
         }
 
-        ModularPanel panel = ModularPanel.defaultPanel("mmce_advanced_builder_tool", 176, 162);
+        ModularPanel panel = ModularPanel.defaultPanel("mmce_advanced_builder_tool", 176, PANEL_HEIGHT);
         panel.child(Flow.column().margin(7).widthRel(1f).heightRel(1f)
                 .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.title")).height(12).widthRel(1f))
                 .child(row("gui.mmce_advanced_builder_tool.disassemble_mode", new ToggleButton()
@@ -171,7 +177,23 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                                     syncConfigToServer(inventoryData, stack);
                                 }))
                                 .background(GuiTextures.DISPLAY_SMALL)
-                                .width(50).height(18))));
+                                .width(50).height(18)))
+                .child(row("gui.mmce_advanced_builder_tool.optional_blocks", new ButtonWidget<>()
+                        .size(50, 18)
+                        .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.optional_blocks.open"))
+                                .height(18).widthRel(1f).alignment(Alignment.Center))
+                        .onMouseTapped(mouseButton -> {
+                            BlockVariablePickerScreen.open(null,
+                                    BuilderToolSettings.variables(currentStack(inventoryData)),
+                                    BuilderToolSettings.skipExistingBlocks(currentStack(inventoryData)),
+                                    (variable, spec) -> syncVariableToServer(inventoryData, variable, spec),
+                                    skip -> {
+                                        ItemStack stack = currentStack(inventoryData);
+                                        BuilderToolSettings.setSkipExistingBlocks(stack, skip);
+                                        syncConfigToServer(inventoryData, stack);
+                                    });
+                            return true;
+                        }))));
         return panel;
     }
 
@@ -208,7 +230,16 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                 BuilderToolSettings.craftMissing(stack),
                 BuilderToolSettings.disassembleMode(stack),
                 BuilderToolSettings.dynamicLength(stack),
-                BuilderToolSettings.attachmentModule(stack)));
+                BuilderToolSettings.attachmentModule(stack),
+                BuilderToolSettings.skipExistingBlocks(stack)));
+    }
+
+    private void syncVariableToServer(PlayerInventoryGuiData data, String variable, String spec) {
+        if (!data.getPlayer().world.isRemote) {
+            return;
+        }
+        BuilderToolSettings.setVariable(currentStack(data), variable, spec);
+        BuilderNetwork.CHANNEL.sendToServer(new VariableSelectionPacket(data.getSlotIndex(), variable, spec));
     }
 
     @Override
@@ -221,6 +252,10 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
         if (Mods.MMCE_COMPLEMENT.isLoading() && !BuilderToolSettings.attachmentModule(stack).isEmpty()) {
             tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.7",
                     BuilderToolSettings.attachmentModule(stack)));
+        }
+        Map<String, String> variableSelections = BuilderToolSettings.variables(stack);
+        if (!variableSelections.isEmpty()) {
+            tooltip.add(I18n.translateToLocalFormatted("tooltip.mmce_advanced_builder_tool.8", variableSelections.size()));
         }
         tooltip.add(I18n.translateToLocal("tooltip.mmce_advanced_builder_tool.6"));
     }

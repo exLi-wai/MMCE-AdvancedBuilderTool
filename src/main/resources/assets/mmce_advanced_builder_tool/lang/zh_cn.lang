@@ -6,6 +6,8 @@ tooltip.mmce_advanced_builder_tool.4=动态结构长度：%d
 tooltip.mmce_advanced_builder_tool.5=拆卸模式：%s
 tooltip.mmce_advanced_builder_tool.6=潜行右键MMCE控制器执行当前模式。
 tooltip.mmce_advanced_builder_tool.7=附属模块：%s
+tooltip.mmce_advanced_builder_tool.8=可选方块：已配置 %d 个别名
+
 gui.mmce_advanced_builder_tool.title=MMCE高级搭建工具
 gui.mmce_advanced_builder_tool.disassemble_mode=拆卸模式
 gui.mmce_advanced_builder_tool.use_ae_items=通过无线终端调用AE物品
@@ -15,6 +17,18 @@ gui.mmce_advanced_builder_tool.dynamic_length=动态结构长度
 gui.mmce_advanced_builder_tool.attachment_module=附属模块
 gui.mmce_advanced_builder_tool.on=开
 gui.mmce_advanced_builder_tool.off=关
+gui.mmce_advanced_builder_tool.optional_blocks=可选方块
+gui.mmce_advanced_builder_tool.optional_blocks.open=选择
+gui.mmce_advanced_builder_tool.variables.title=选择方块别名
+gui.mmce_advanced_builder_tool.variables.all=全部替换
+gui.mmce_advanced_builder_tool.variables.skip_existing=跳过已有方块
+gui.mmce_advanced_builder_tool.variables.all.hint=可从JEI中拖入方块,左键清空
+gui.mmce_advanced_builder_tool.variables.blocks=为该别名选择方块
+gui.mmce_advanced_builder_tool.variables.none=在 config/modularmachinery 下未找到别名文件。
+gui.mmce_advanced_builder_tool.variables.truncated=... 还有 %d 个别名
+gui.mmce_advanced_builder_tool.variables.pattern_default=使用多方块默认方块
+gui.mmce_advanced_builder_tool.variables.back=返回别名列表
+
 message.mmce_advanced_builder_tool.no_controller=该方块不是MMCE控制器。
 message.mmce_advanced_builder_tool.no_machine=没有找到该控制器的机器定义。
 message.mmce_advanced_builder_tool.already_running=该控制器已经在搭建中。

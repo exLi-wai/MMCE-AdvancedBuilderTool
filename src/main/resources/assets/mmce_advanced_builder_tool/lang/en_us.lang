@@ -6,6 +6,8 @@ tooltip.mmce_advanced_builder_tool.4=Dynamic length: %d
 tooltip.mmce_advanced_builder_tool.5=Disassembly mode: %s
 tooltip.mmce_advanced_builder_tool.6=Sneak right click an MMCE controller to run the selected mode.
 tooltip.mmce_advanced_builder_tool.7=Attachment module: %s
+tooltip.mmce_advanced_builder_tool.8=Optional blocks: %d alias(es) configured
+
 gui.mmce_advanced_builder_tool.title=MMCE Advanced Structure Builder
 gui.mmce_advanced_builder_tool.disassemble_mode=Disassembly mode
 gui.mmce_advanced_builder_tool.use_ae_items=Use AE items from wireless terminal
@@ -15,6 +17,18 @@ gui.mmce_advanced_builder_tool.dynamic_length=Dynamic length
 gui.mmce_advanced_builder_tool.attachment_module=Attachment module
 gui.mmce_advanced_builder_tool.on=ON
 gui.mmce_advanced_builder_tool.off=OFF
+gui.mmce_advanced_builder_tool.optional_blocks=Optional blocks
+gui.mmce_advanced_builder_tool.optional_blocks.open=Choose
+gui.mmce_advanced_builder_tool.variables.title=Pick a block alias
+gui.mmce_advanced_builder_tool.variables.all=Replace all
+gui.mmce_advanced_builder_tool.variables.skip_existing=Skip existing blocks
+gui.mmce_advanced_builder_tool.variables.all.hint=Can Be Dragged From JEI Into Blocks , Left click to clear
+gui.mmce_advanced_builder_tool.variables.blocks=Pick a block for this alias
+gui.mmce_advanced_builder_tool.variables.none=No alias files were found under config/modularmachinery.
+gui.mmce_advanced_builder_tool.variables.truncated=... and %d more alias(es)
+gui.mmce_advanced_builder_tool.variables.pattern_default=Use the pattern default
+gui.mmce_advanced_builder_tool.variables.back=Back to the alias list
+
 message.mmce_advanced_builder_tool.no_controller=Target block is not an MMCE controller.
 message.mmce_advanced_builder_tool.no_machine=No machine definition was found for this controller.
 message.mmce_advanced_builder_tool.already_running=This controller is already being assembled.
