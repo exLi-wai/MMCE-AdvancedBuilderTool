@@ -103,10 +103,10 @@ public class MachineDisassemblyTask implements BuildTask {
     public void tick() {
         List<DisassemblyPlan.ItemEntry> itemIngredient = plan.itemEntries();
         List<DisassemblyPlan.FluidEntry> fluidIngredient = plan.fluidEntries();
-        if (!itemIngredient.isEmpty()) {
-            disassembleItemBlock(itemIngredient);
-        } else if (!fluidIngredient.isEmpty()) {
+        if (!fluidIngredient.isEmpty()) {
             disassembleFluidBlock(fluidIngredient);
+        } else if (!itemIngredient.isEmpty()) {
+            disassembleItemBlock(itemIngredient);
         }
     }
 
