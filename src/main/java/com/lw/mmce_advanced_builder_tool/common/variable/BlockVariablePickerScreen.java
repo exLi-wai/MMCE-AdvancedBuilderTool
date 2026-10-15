@@ -3,6 +3,7 @@ package com.lw.mmce_advanced_builder_tool.common.variable;
 import com.cleanroommc.modularui.api.MCHelper;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
+import com.cleanroommc.modularui.drawable.DynamicDrawable;
 import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.ItemDrawable;
 import com.cleanroommc.modularui.screen.CustomModularScreen;
@@ -21,9 +22,6 @@ import net.minecraft.item.ItemStack;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-
-import static com.lw.mmce_advanced_builder_tool.common.variable.BlockVariables.ALL_VARIABLES;
 
 /**
  * Picker for the {@code *.var.json} aliases a machine pattern can reference.
@@ -32,6 +30,9 @@ import static com.lw.mmce_advanced_builder_tool.common.variable.BlockVariables.A
  * row is built once and switched on or off through {@code setEnabledIf}, which ModularUI honours for
  * both layout and input. Rebuilding the panel or swapping screens is deliberately avoided - replacing
  * the screen that is currently dispatching the click did not work reliably.
+ *
+ * <p>Neither the replace-all cell nor the skip-existing toggle is part of this screen: both are
+ * settings of the builder tool and live in its panel, next to the button that opens this picker.
  *
  * <p>Client only, which comes from {@link CustomModularScreen} itself. This class must not repeat the
  * {@code @SideOnly} annotation: the parent already carries it on the class and on
@@ -51,26 +52,29 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     private static final int HEADER_HEIGHT = 14;
     private static final int ALIAS_ROWS = 5;
     private static final int CELL_SIZE = 18;
-    // Eight 18px cells fit inside the 176px panel with the 6px side margins.
     private static final int GRID_COLUMNS = 8;
     private static final int GRID_ROWS = 6;
     private static final int LIST_MARGIN = 6;
-    private static final int PANEL_HEIGHT = 190;
+    private static final int PANEL_HEIGHT = 160;
     private static final int CONTENT_WIDTH = PANEL_WIDTH - LIST_MARGIN * 2;
+    /** An alias row shows the picked block in the left fifth and the name in the right three fifths. */
+    private static final int ALIAS_NAME_WIDTH = CONTENT_WIDTH * 3 / 5;
+    /** Nudge of the alias name off the left edge of its button. */
+    private static final int ALIAS_NAME_OFFSET = 2;
+    /** Reserved for the {@code (n)} block count, which is pinned to the right edge of the button. */
+    private static final int ALIAS_COUNT_WIDTH = 22;
+    /** The white with shadow the button theme paints its labels in. */
+    private static final int BUTTON_TEXT_COLOR = 0xFFFFFFFF;
 
     private final SelectionHandler handler;
-    private final Consumer<Boolean> skipExistingHandler;
+    private final Map<String, ItemStack> pickedStacks = new HashMap<>();
     private SelectionState state;
-    private GhostBlockSlot allCell;
     private BlockVariables aliasCache;
 
-    private BlockVariablePickerScreen(String initial, boolean skipExistingBlocks,
-                                      SelectionHandler handler, Consumer<Boolean> skipExistingHandler) {
+    private BlockVariablePickerScreen(String initial, SelectionHandler handler) {
         super(OWNER);
         this.handler = handler;
-        this.skipExistingHandler = skipExistingHandler;
         state().expanded = initial;
-        state().skipExistingBlocks = skipExistingBlocks;
     }
 
     private SelectionState state() {
@@ -87,11 +91,9 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
         return aliasCache;
     }
 
-    public static void open(String initial, Map<String, String> stored, boolean skipExistingBlocks,
-                            SelectionHandler handler, Consumer<Boolean> skipExistingHandler) {
+    public static void open(String initial, Map<String, String> stored, SelectionHandler handler) {
         try {
-            BlockVariablePickerScreen screen = new BlockVariablePickerScreen(initial, skipExistingBlocks,
-                    handler, skipExistingHandler);
+            BlockVariablePickerScreen screen = new BlockVariablePickerScreen(initial, handler);
             screen.showStored(stored);
             UISettings settings = new UISettings();
             settings.customContainer(ModularContainer::new);
@@ -109,9 +111,6 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
         if (selections != null) {
             state().stored.putAll(selections);
         }
-        if (allCell != null) {
-            showStoredAllPick(allCell);
-        }
     }
 
     @Override
@@ -123,8 +122,6 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                         ? IKey.lang("gui.mmce_advanced_builder_tool.variables.title").getFormatted()
                         : IKey.lang("gui.mmce_advanced_builder_tool.variables.blocks").getFormatted()))
                         .height(HEADER_HEIGHT).widthRel(1f).alignment(Alignment.Center));
-        buildAllRow(column);
-        buildSkipExistingRow(column);
         buildAliasRows(column);
         buildBlockRows(column);
         panel.child(column);
@@ -147,18 +144,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
             for (int i = 0; i < shown; i++) {
                 String variable = names.get(start + i);
                 int pageForRow = currentPage;
-                column.child(button(variable + "  (" + aliases().blocks(variable).size() + ")")
-                        .tooltip(tooltip -> {
-                            String stored = state().stored.get(variable);
-                            if (stored != null && !stored.isEmpty()) {
-                                tooltip.addLine(IKey.str(stored));
-                            }
-                        })
-                        .setEnabledIf(widget -> state().expanded == null && state().aliasPage == pageForRow)
-                        .onMouseTapped(mouseButton -> {
-                            state().expanded = variable;
-                            return true;
-                        }));
+                column.child(aliasRow(variable)
+                        .setEnabledIf(widget -> state().expanded == null && state().aliasPage == pageForRow));
             }
         }
         if (pages > 1) {
@@ -171,7 +158,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                         return true;
                     }));
             pager.child(new TextWidget<>(IKey.dynamic(() -> (state().aliasPage + 1) + "/" + pages))
-                    .width(CONTENT_WIDTH - ROW_HEIGHT * 2).height(ROW_HEIGHT).alignment(Alignment.Center));
+                    .width(CONTENT_WIDTH - ROW_HEIGHT * 2).height(ROW_HEIGHT).alignment(Alignment.Center)
+                    .color(BUTTON_TEXT_COLOR).shadow(true));
             pager.child(button(">")
                     .width(ROW_HEIGHT).setEnabledIf(widget -> state().expanded == null && state().aliasPage + 1 < pages)
                     .onMouseTapped(mouseButton -> {
@@ -224,73 +212,87 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
         }
     }
 
-    private void buildAllRow(Flow column) {
-        GhostBlockSlot cell = new GhostBlockSlot(CELL_SIZE, stack -> {
-            // An empty stack is how the cell reports "cleared", so both it and an unusable stack fall
-            // back to the pattern's own blocks.
-            String spec = GhostBlockSlot.blockSpecOf(stack);
-            select(ALL_VARIABLES, spec == null ? "" : spec);
-        });
-        allCell = cell;
-        column.child(Flow.row().widthRel(1f).height(CELL_SIZE).margin(0, 0, ROW_GAP, ROW_GAP)
-                .collapseDisabledChild()
-                .child(cell.setEnabledIf(widget -> state().expanded == null)
-                        .tooltip(tooltip -> tooltip.addLine(
-                                IKey.lang("gui.mmce_advanced_builder_tool.variables.all.hint"))))
-                .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.variables.all"))
-                        .width(CONTENT_WIDTH - CELL_SIZE).height(CELL_SIZE)
-                        .alignment(Alignment.Center)
-                        .setEnabledIf(widget -> state().expanded == null))
-                .setEnabledIf(widget -> state().expanded == null));
+    /**
+     * One alias row: a cell in the left fifth, an empty fifth, then the name button in the right three
+     * fifths. The cell and the button are separate: the cell shows the block the alias resolves to,
+     * while the name button is the one that opens the alias.
+     */
+    private Flow aliasRow(String variable) {
+        return Flow.row().widthRel(1f).height(CELL_SIZE)
+                .mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
+                .child(aliasCell(variable))
+                .child(aliasNameButton(variable));
     }
 
-    private void buildSkipExistingRow(Flow column) {
-        column.child(Flow.row().widthRel(1f).height(ROW_HEIGHT).margin(0, 0, ROW_GAP, ROW_GAP)
-                .collapseDisabledChild()
-                .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.variables.skip_existing"))
-                        .width(CONTENT_WIDTH - 38).height(ROW_HEIGHT)
-                        .alignment(Alignment.Center)
-                        .setEnabledIf(widget -> state().expanded == null))
-                .child(new ButtonWidget<>()
-                        .size(38, ROW_HEIGHT)
-                        .child(new TextWidget<>(IKey.dynamic(() -> state().skipExistingBlocks
-                                ? IKey.lang("gui.mmce_advanced_builder_tool.on").getFormatted()
-                                : IKey.lang("gui.mmce_advanced_builder_tool.off").getFormatted()))
-                                .size(38, ROW_HEIGHT).alignment(Alignment.Center))
-                        .setEnabledIf(widget -> state().expanded == null)
-                        .onMouseTapped(mouseButton -> {
-                            state().skipExistingBlocks = !state().skipExistingBlocks;
-                            skipExistingHandler.accept(state().skipExistingBlocks);
-                            return true;
-                        }))
-                .setEnabledIf(widget -> state().expanded == null));
+    private Flow aliasCell(String variable) {
+        return Flow.row().size(CELL_SIZE, CELL_SIZE).padding(1)
+                .background(GuiTextures.SLOT_ITEM)
+                .overlay(new DynamicDrawable(() -> {
+                    ItemStack stack = pickedStack(variable);
+                    return stack.isEmpty() ? null : new ItemDrawable(stack).asIcon().size(CELL_SIZE - 2, CELL_SIZE - 2);
+                }))
+                .tooltipDynamic(tooltip -> {
+                    ItemStack stack = pickedStack(variable);
+                    if (!stack.isEmpty()) {
+                        tooltip.addFromItem(stack);
+                    }
+                })
+                .tooltipAutoUpdate(true);
     }
 
-    @Override
-    public void onOpen() {
-        super.onOpen();
-        if (allCell != null) {
-            allCell.registerRecipeViewerTarget();
+    private ButtonWidget<?> aliasNameButton(String variable) {
+        return new ButtonWidget<>()
+                .width(ALIAS_NAME_WIDTH).height(CELL_SIZE)
+                .child(Flow.row().widthRel(1f).height(CELL_SIZE)
+                        .child(new TextWidget<>(variable)
+                                .margin(ALIAS_NAME_OFFSET, 0, 0, 0)
+                                .width(ALIAS_NAME_WIDTH - ALIAS_NAME_OFFSET - ALIAS_COUNT_WIDTH)
+                                .height(CELL_SIZE)
+                                .alignment(Alignment.CenterLeft)
+                                .color(BUTTON_TEXT_COLOR).shadow(true))
+                        .child(new TextWidget<>("(" + aliases().blocks(variable).size() + ")")
+                                .width(ALIAS_COUNT_WIDTH).height(CELL_SIZE)
+                                .alignment(Alignment.Center)
+                                .color(BUTTON_TEXT_COLOR).shadow(true)))
+                .tooltip(tooltip -> tooltip.addLine(IKey.str(variable)))
+                .onMouseTapped(mouseButton -> {
+                    state().expanded = variable;
+                    return true;
+                });
+    }
+
+    /**
+     * The spec the builder would use for this alias: an explicit replace-all pick wins over the alias's
+     * own pick, the same way {@link BlockVariables#applySelections} resolves it.
+     */
+    private String pickedSpec(String variable) {
+        String global = state().stored.get(BlockVariables.ALL_VARIABLES);
+        if (global != null && !global.isEmpty()) {
+            return global;
         }
+        return state().stored.get(variable);
     }
 
-    private void showStoredAllPick(GhostBlockSlot cell) {
-        String spec = state().stored.get(ALL_VARIABLES);
+    /** Parsed once per distinct spec, because the cell asks for it on every frame. */
+    private ItemStack pickedStack(String variable) {
+        String spec = pickedSpec(variable);
         if (spec == null || spec.isEmpty()) {
-            return;
+            return ItemStack.EMPTY;
+        }
+        ItemStack cached = pickedStacks.get(spec);
+        if (cached != null) {
+            return cached;
         }
         VariableBlockSpec parsed = VariableBlockSpec.parse(spec);
-        if (parsed != null) {
-            cell.showPreview(parsed.displayStack());
-        }
+        ItemStack stack = parsed == null ? ItemStack.EMPTY : parsed.displayStack();
+        pickedStacks.put(spec, stack);
+        return stack;
     }
 
     private ButtonWidget<?> button(String label) {
         return new ButtonWidget<>()
                 .widthRel(1f).height(ROW_HEIGHT)
-                .child(new TextWidget<>(label)
-                        .widthRel(1f).height(ROW_HEIGHT)
-                        .alignment(Alignment.Center));
+                .overlay(IKey.str(label));
     }
 
     private ButtonWidget<?> actionCell(IDrawable icon, String tooltipKey, int leftOffset) {
@@ -321,7 +323,6 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     private static final class SelectionState {
         private String expanded;
         private int aliasPage;
-        private boolean skipExistingBlocks;
         private final Map<String, String> stored = new HashMap<>();
     }
 

@@ -1,9 +1,11 @@
 package com.lw.mmce_advanced_builder_tool.common.variable;
 
+import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.drawable.ItemDrawable;
 import com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerGhostIngredientSlot;
+import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
+import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
@@ -12,31 +14,35 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * One virtual cell that accepts a block dragged out of the recipe viewer, or the block the player is
  * carrying.
  *
- * <p>Deliberately not a {@code PhantomItemSlot}: that widget demands a {@code PhantomItemSlotSH}, which
- * reaches for a {@code PanelSyncManager} that this client only screen does not own. The recipe viewer
- * integration itself only needs {@link RecipeViewerGhostIngredientSlot}, and ModularUI turns any widget
+ * <p>Deliberately not a {@code PhantomItemSlot}: that widget demands a {@code PhantomItemSlotSH} and a
+ * slot of its own, while this cell only ever holds a client side choice. The recipe viewer integration
+ * itself only needs {@link RecipeViewerGhostIngredientSlot}, and ModularUI turns any widget
  * implementing it into a drop target once the widget is registered through
- * {@code RecipeViewerSettings#addGhostIngredientSlot} (see {@link #registerRecipeViewerTarget()}).
+ * {@code RecipeViewerSettings#addGhostIngredientSlot}. Registering here in {@link #onInit()} instead of
+ * from a screen keeps the cell usable in the builder tool panel, which is an ordinary synced GUI.
  *
- * <p>The dropped block is remembered as the player's choice and reported once through
- * {@code onBlockChosen}; nothing is ever placed into a real inventory. Left clicking takes the block
- * the player is carrying, right clicking clears the cell.
+ * <p>The picked block leaves as an alias spec ({@code mod:block@meta}), which is what the builder
+ * stores; an empty spec reports that the cell was cleared, so the tool falls back to the pattern's own
+ * blocks. Left clicking takes the block the player is carrying and right clicking clears the cell.
  */
-final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements RecipeViewerGhostIngredientSlot<ItemStack> {
+public final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements RecipeViewerGhostIngredientSlot<ItemStack> {
 
-    private final int cellSize;
-    private final Consumer<ItemStack> onBlockChosen;
+    private final int iconSize;
+    private final Consumer<String> onSpecChosen;
+    private Supplier<String> storedSpec;
     private ItemStack stored = ItemStack.EMPTY;
+    private boolean registrationAttempted;
 
-    GhostBlockSlot(int cellSize, Consumer<ItemStack> onBlockChosen) {
-        this.cellSize = cellSize;
-        this.onBlockChosen = onBlockChosen;
-        size(cellSize, cellSize);
+    public GhostBlockSlot(int width, int height, Consumer<String> onSpecChosen) {
+        this.iconSize = Math.max(1, height - 2);
+        this.onSpecChosen = onSpecChosen;
+        size(width, height);
         onMouseTapped(mouseButton -> {
             if (mouseButton == 1) {
                 clear();
@@ -46,18 +52,30 @@ final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements Recip
         });
     }
 
-    void showPreview(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) {
-            return;
-        }
-        stored = stack.copy();
-        stored.setCount(1);
-        overlay(new ItemDrawable(stored).asIcon().size(cellSize, cellSize));
+    /**
+     * Shows the block a spec that is already stored on the tool refers to, so reopening the GUI still
+     * tells the player what the cell currently stands for.
+     *
+     * <p>The supplier is read in {@link #onInit()}, never while the panel is being built: only the
+     * client builds an item icon, and only the client reads the live tool stack.
+     */
+    public GhostBlockSlot showStored(Supplier<String> specSupplier) {
+        this.storedSpec = specSupplier;
+        return this;
     }
 
-    private boolean registrationAttempted;
+    @Override
+    public void onInit() {
+        registerRecipeViewerTarget();
+        if (storedSpec != null) {
+            VariableBlockSpec parsed = VariableBlockSpec.parse(storedSpec.get());
+            if (parsed != null) {
+                showPreview(parsed.displayStack());
+            }
+        }
+    }
 
-    void registerRecipeViewerTarget() {
+    private void registerRecipeViewerTarget() {
         if (registrationAttempted) {
             return;
         }
@@ -65,12 +83,10 @@ final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements Recip
         try {
             getContext().getRecipeViewerSettings().addGhostIngredientSlot(this);
         } catch (RuntimeException e) {
-            MMCEAdvancedBuilderTool.LOGGER.warn("Block alias picker: the block cell could not be offered to the "
-                    + "recipe viewer, so dragging a block into it will not work", e);
         }
     }
 
-    boolean takeOfferedBlock() {
+    private boolean takeOfferedBlock() {
         ItemStack offered = offeredStack();
         if (offered.isEmpty()) {
             return false;
@@ -96,12 +112,10 @@ final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements Recip
         return blockSpecOf(offHand) == null ? ItemStack.EMPTY : offHand;
     }
 
-    void clear() {
+    private void clear() {
         stored = ItemStack.EMPTY;
         overlay();
-        if (onBlockChosen != null) {
-            onBlockChosen.accept(ItemStack.EMPTY);
-        }
+        report("");
     }
 
     @Override
@@ -110,9 +124,7 @@ final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements Recip
             return;
         }
         showPreview(ingredient);
-        if (onBlockChosen != null) {
-            onBlockChosen.accept(stored);
-        }
+        report(blockSpecOf(stored));
     }
 
     @Override
@@ -124,7 +136,36 @@ final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implements Recip
         return blockSpecOf(stack) == null ? null : stack;
     }
 
-    static String blockSpecOf(ItemStack stack) {
+    /**
+     * Icons ignore the size they are handed and draw from their own origin, so the block has to be
+     * centred here rather than through {@code overlay()} alone.
+     */
+    @Override
+    public void drawOverlay(ModularGuiContext context, WidgetThemeEntry<?> widgetTheme) {
+        IDrawable overlay = getCurrentOverlay(widgetTheme);
+        if (overlay == null) {
+            return;
+        }
+        overlay.draw(context, (getArea().width - iconSize) / 2, (getArea().height - iconSize) / 2,
+                iconSize, iconSize, getActiveWidgetTheme(widgetTheme, isHovering()));
+    }
+
+    private void showPreview(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return;
+        }
+        stored = stack.copy();
+        stored.setCount(1);
+        overlay(new ItemDrawable(stored).asIcon().size(iconSize, iconSize));
+    }
+
+    private void report(String spec) {
+        if (onSpecChosen != null) {
+            onSpecChosen.accept(spec == null ? "" : spec);
+        }
+    }
+
+    private static String blockSpecOf(ItemStack stack) {
         if (stack.isEmpty() || !(stack.getItem() instanceof ItemBlock)) {
             return null;
         }

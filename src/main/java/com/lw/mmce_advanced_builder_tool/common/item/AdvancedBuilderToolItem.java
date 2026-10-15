@@ -31,6 +31,8 @@ import com.lw.mmce_advanced_builder_tool.common.network.VariableSelectionPacket;
 import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import com.lw.mmce_advanced_builder_tool.common.variable.BlockVariablePickerScreen;
+import com.lw.mmce_advanced_builder_tool.common.variable.BlockVariables;
+import com.lw.mmce_advanced_builder_tool.common.variable.GhostBlockSlot;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
@@ -55,7 +57,10 @@ import java.util.Map;
 public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData> {
 
     public static final String REGISTRY_NAME = "advanced_builder_tool";
-    private static final int PANEL_HEIGHT = 190;
+    private static final int PANEL_HEIGHT = 234;
+    private static final int CONTROL_WIDTH = 50;
+    private static final int CONTROL_HEIGHT = 18;
+    private static final int LABEL_WIDTH = 112;
 
     public AdvancedBuilderToolItem() {
         setTranslationKey(Tags.MOD_ID + "." + REGISTRY_NAME);
@@ -126,7 +131,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                             BuilderToolSettings.setDisassembleMode(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
-                        .size(18, 18)
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_items", new ToggleButton()
@@ -135,7 +140,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                             BuilderToolSettings.setUseAeItems(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
-                        .size(18, 18)
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.use_ae_fluids", new ToggleButton()
@@ -144,7 +149,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                             BuilderToolSettings.setUseAeFluids(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
-                        .size(18, 18)
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.craft_missing", new ToggleButton()
@@ -153,7 +158,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                             BuilderToolSettings.setCraftMissing(stack, val);
                             syncConfigToServer(inventoryData, stack);
                         }))
-                        .size(18, 18)
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
                         .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
                         .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on"))))
                 .child(row("gui.mmce_advanced_builder_tool.dynamic_length", new TextFieldWidget()
@@ -168,7 +173,7 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                         }))
                         .setNumbers(0, 4096)
                         .background(GuiTextures.DISPLAY_SMALL)
-                        .width(50).height(18)))
+                        .width(CONTROL_WIDTH).height(CONTROL_HEIGHT)))
                 .childIf(Mods.MMCE_COMPLEMENT.isLoading(),
                         () -> row("gui.mmce_advanced_builder_tool.attachment_module", new TextFieldWidget()
                                 .value(SyncHandlers.string(() -> BuilderToolSettings.attachmentModule(currentStack(inventoryData)), val -> {
@@ -177,23 +182,32 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
                                     syncConfigToServer(inventoryData, stack);
                                 }))
                                 .background(GuiTextures.DISPLAY_SMALL)
-                                .width(50).height(18)))
+                                .width(CONTROL_WIDTH).height(CONTROL_HEIGHT)))
                 .child(row("gui.mmce_advanced_builder_tool.optional_blocks", new ButtonWidget<>()
-                        .size(50, 18)
-                        .child(new TextWidget<>(IKey.lang("gui.mmce_advanced_builder_tool.optional_blocks.open"))
-                                .height(18).widthRel(1f).alignment(Alignment.Center))
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
+                        .overlay(IKey.lang("gui.mmce_advanced_builder_tool.optional_blocks.open"))
                         .onMouseTapped(mouseButton -> {
                             BlockVariablePickerScreen.open(null,
                                     BuilderToolSettings.variables(currentStack(inventoryData)),
-                                    BuilderToolSettings.skipExistingBlocks(currentStack(inventoryData)),
-                                    (variable, spec) -> syncVariableToServer(inventoryData, variable, spec),
-                                    skip -> {
-                                        ItemStack stack = currentStack(inventoryData);
-                                        BuilderToolSettings.setSkipExistingBlocks(stack, skip);
-                                        syncConfigToServer(inventoryData, stack);
-                                    });
+                                    (variable, spec) -> syncVariableToServer(inventoryData, variable, spec));
                             return true;
-                        }))));
+                        })))
+                .child(row("gui.mmce_advanced_builder_tool.variables.all",
+                        new GhostBlockSlot(CONTROL_WIDTH, CONTROL_HEIGHT, spec ->
+                                syncVariableToServer(inventoryData, BlockVariables.ALL_VARIABLES, spec))
+                                .showStored(() -> BuilderToolSettings.variable(currentStack(inventoryData),
+                                        BlockVariables.ALL_VARIABLES))
+                                .tooltip(tooltip -> tooltip.addLine(
+                                        IKey.lang("gui.mmce_advanced_builder_tool.variables.all.hint")))))
+                .child(row("gui.mmce_advanced_builder_tool.variables.skip_existing", new ToggleButton()
+                        .value(SyncHandlers.bool(() -> BuilderToolSettings.skipExistingBlocks(currentStack(inventoryData)), val -> {
+                            ItemStack stack = currentStack(inventoryData);
+                            BuilderToolSettings.setSkipExistingBlocks(stack, val);
+                            syncConfigToServer(inventoryData, stack);
+                        }))
+                        .size(CONTROL_WIDTH, CONTROL_HEIGHT)
+                        .overlay(false, IKey.lang("gui.mmce_advanced_builder_tool.off"))
+                        .overlay(true, IKey.lang("gui.mmce_advanced_builder_tool.on")))));
         return panel;
     }
 
@@ -215,8 +229,9 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
     }
 
     private Widget<?> row(String labelKey, Widget<?> control) {
-        return Flow.row().widthRel(1f).height(22)
-                .child(new TextWidget<>(IKey.lang(labelKey)).width(112).height(18).alignment(Alignment.CenterLeft))
+        return Flow.row().widthRel(1f).height(22).mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
+                .child(new TextWidget<>(IKey.lang(labelKey)).width(LABEL_WIDTH).height(CONTROL_HEIGHT)
+                        .alignment(Alignment.CenterLeft))
                 .child(control);
     }
 
