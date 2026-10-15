@@ -18,6 +18,7 @@ import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.text.translation.I18n;
 
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +64,9 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     private static final int ALIAS_NAME_OFFSET = 2;
     /** Reserved for the {@code (n)} block count, which is pinned to the right edge of the button. */
     private static final int ALIAS_COUNT_WIDTH = 22;
-    /** The white with shadow the button theme paints its labels in. */
+    private static final int BLOCK_PAGE_TEXT_WIDTH = 40;
+    private static final int BLOCK_PAGER_WIDTH = CELL_SIZE * 2 + BLOCK_PAGE_TEXT_WIDTH;
+    private static final String ALIAS_NAME_KEY = "gui.mmce_advanced_builder_tool.Variable_";
     private static final int BUTTON_TEXT_COLOR = 0xFFFFFFFF;
 
     private final SelectionHandler handler;
@@ -144,7 +147,7 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
             for (int i = 0; i < shown; i++) {
                 String variable = names.get(start + i);
                 int pageForRow = currentPage;
-                column.child(aliasRow(variable)
+                column.child(aliasRow(variable, start + i + 1)
                         .setEnabledIf(widget -> state().expanded == null && state().aliasPage == pageForRow));
             }
         }
@@ -171,26 +174,36 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     }
 
     private void buildBlockRows(Flow column) {
+        int cellsPerPage = GRID_COLUMNS * GRID_ROWS;
         for (String variable : aliases().names()) {
             List<VariableBlockSpec> blocks = aliases().blocks(variable);
-            int shown = Math.min(blocks.size(), GRID_COLUMNS * GRID_ROWS);
-            for (int row = 0; row * GRID_COLUMNS < shown; row++) {
-                Flow rowFlow = Flow.row().widthRel(1f).height(CELL_SIZE).margin(0, 0, 0, ROW_GAP)
-                        .collapseDisabledChild();
-                for (int columnIndex = 0; columnIndex < GRID_COLUMNS; columnIndex++) {
-                    int index = row * GRID_COLUMNS + columnIndex;
-                    if (index >= shown) {
-                        rowFlow.child(Flow.row().size(CELL_SIZE, CELL_SIZE));
-                        continue;
+            int pages = Math.max(1, (blocks.size() + cellsPerPage - 1) / cellsPerPage);
+            for (int page = 0; page < pages; page++) {
+                int pageStart = page * cellsPerPage;
+                int shown = Math.min(cellsPerPage, blocks.size() - pageStart);
+                for (int row = 0; row * GRID_COLUMNS < shown; row++) {
+                    Flow rowFlow = Flow.row().widthRel(1f).height(CELL_SIZE).margin(0, 0, 0, ROW_GAP)
+                            .collapseDisabledChild();
+                    for (int columnIndex = 0; columnIndex < GRID_COLUMNS; columnIndex++) {
+                        int cell = row * GRID_COLUMNS + columnIndex;
+                        if (cell >= shown) {
+                            rowFlow.child(Flow.row().size(CELL_SIZE, CELL_SIZE));
+                            continue;
+                        }
+                        VariableBlockSpec spec = blocks.get(pageStart + cell);
+                        rowFlow.child(blockCell(spec)
+                                .onMouseTapped(mouseButton -> {
+                                    select(variable, spec.describe());
+                                    return true;
+                                }));
                     }
-                    VariableBlockSpec spec = blocks.get(index);
-                    rowFlow.child(blockCell(spec)
-                            .onMouseTapped(mouseButton -> {
-                                select(variable, spec.describe());
-                                return true;
-                            }));
+                    int pageForRow = page;
+                    column.child(rowFlow.setEnabledIf(widget -> variable.equals(state().expanded)
+                            && state().blockPage == pageForRow));
                 }
-                column.child(rowFlow.setEnabledIf(widget -> variable.equals(state().expanded)));
+            }
+            if (pages > 1) {
+                buildBlockPager(column, variable, pages);
             }
         }
 
@@ -212,16 +225,43 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
         }
     }
 
+    private void buildBlockPager(Flow column, String variable, int pages) {
+        column.child(button("<")
+                .width(CELL_SIZE)
+                .left(CONTENT_WIDTH - BLOCK_PAGER_WIDTH).bottom(0)
+                .setEnabledIf(widget -> variable.equals(state().expanded) && state().blockPage > 0)
+                .onMouseTapped(mouseButton -> {
+                    state().blockPage--;
+                    return true;
+                }));
+        column.child(new TextWidget<>(IKey.dynamic(() -> (state().blockPage + 1) + "/" + pages))
+                .width(BLOCK_PAGE_TEXT_WIDTH).height(ROW_HEIGHT)
+                .alignment(Alignment.Center)
+                .color(BUTTON_TEXT_COLOR).shadow(true)
+                .left(CONTENT_WIDTH - CELL_SIZE - BLOCK_PAGE_TEXT_WIDTH).bottom(0)
+                .setEnabledIf(widget -> variable.equals(state().expanded)));
+        column.child(button(">")
+                .width(CELL_SIZE)
+                .left(CONTENT_WIDTH - CELL_SIZE).bottom(0)
+                .setEnabledIf(widget -> variable.equals(state().expanded) && state().blockPage + 1 < pages)
+                .onMouseTapped(mouseButton -> {
+                    state().blockPage++;
+                    return true;
+                }));
+    }
+
     /**
      * One alias row: a cell in the left fifth, an empty fifth, then the name button in the right three
      * fifths. The cell and the button are separate: the cell shows the block the alias resolves to,
      * while the name button is the one that opens the alias.
+     *
+     * @param index 1 based position of the alias in the list, which is what its localisation key uses
      */
-    private Flow aliasRow(String variable) {
+    private Flow aliasRow(String variable, int index) {
         return Flow.row().widthRel(1f).height(CELL_SIZE)
                 .mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
                 .child(aliasCell(variable))
-                .child(aliasNameButton(variable));
+                .child(aliasNameButton(variable, index));
     }
 
     private Flow aliasCell(String variable) {
@@ -240,11 +280,15 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                 .tooltipAutoUpdate(true);
     }
 
-    private ButtonWidget<?> aliasNameButton(String variable) {
+    private ButtonWidget<?> aliasNameButton(String variable, int index) {
+        String key = ALIAS_NAME_KEY + index;
+        String localized = I18n.translateToLocal(key);
+        boolean hasLocalization = !localized.equals(key);
+        String name = hasLocalization ? localized : variable;
         return new ButtonWidget<>()
                 .width(ALIAS_NAME_WIDTH).height(CELL_SIZE)
                 .child(Flow.row().widthRel(1f).height(CELL_SIZE)
-                        .child(new TextWidget<>(variable)
+                        .child(new TextWidget<>(name)
                                 .margin(ALIAS_NAME_OFFSET, 0, 0, 0)
                                 .width(ALIAS_NAME_WIDTH - ALIAS_NAME_OFFSET - ALIAS_COUNT_WIDTH)
                                 .height(CELL_SIZE)
@@ -254,9 +298,16 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                                 .width(ALIAS_COUNT_WIDTH).height(CELL_SIZE)
                                 .alignment(Alignment.Center)
                                 .color(BUTTON_TEXT_COLOR).shadow(true)))
-                .tooltip(tooltip -> tooltip.addLine(IKey.str(variable)))
+                .tooltip(tooltip -> {
+                    if (hasLocalization) {
+                        tooltip.addLine(IKey.str(name));
+                    } else {
+                        tooltip.addLine(IKey.lang("gui.mmce_advanced_builder_tool.variables.not_localized", key));
+                    }
+                })
                 .onMouseTapped(mouseButton -> {
                     state().expanded = variable;
+                    state().blockPage = 0;
                     return true;
                 });
     }
@@ -323,6 +374,7 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     private static final class SelectionState {
         private String expanded;
         private int aliasPage;
+        private int blockPage;
         private final Map<String, String> stored = new HashMap<>();
     }
 

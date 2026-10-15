@@ -28,6 +28,7 @@ gui.mmce_advanced_builder_tool.variables.none=在 config/modularmachinery 下未
 gui.mmce_advanced_builder_tool.variables.truncated=... 还有 %d 个别名
 gui.mmce_advanced_builder_tool.variables.pattern_default=使用多方块默认方块
 gui.mmce_advanced_builder_tool.variables.back=返回别名列表
+gui.mmce_advanced_builder_tool.variables.not_localized=未本地化，请在语言文件中添加该键：%s
 
 message.mmce_advanced_builder_tool.no_controller=该方块不是MMCE控制器。
 message.mmce_advanced_builder_tool.no_machine=没有找到该控制器的机器定义。

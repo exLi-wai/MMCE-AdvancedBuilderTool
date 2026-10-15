@@ -28,6 +28,7 @@ gui.mmce_advanced_builder_tool.variables.none=No alias files were found under co
 gui.mmce_advanced_builder_tool.variables.truncated=... and %d more alias(es)
 gui.mmce_advanced_builder_tool.variables.pattern_default=Use the pattern default
 gui.mmce_advanced_builder_tool.variables.back=Back to the alias list
+gui.mmce_advanced_builder_tool.variables.not_localized=Not localised, add this key to a language file: %s
 
 message.mmce_advanced_builder_tool.no_controller=Target block is not an MMCE controller.
 message.mmce_advanced_builder_tool.no_machine=No machine definition was found for this controller.
