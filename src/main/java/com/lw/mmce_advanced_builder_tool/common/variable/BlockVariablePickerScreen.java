@@ -66,7 +66,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
     private static final int ALIAS_COUNT_WIDTH = 22;
     private static final int BLOCK_PAGE_TEXT_WIDTH = 40;
     private static final int BLOCK_PAGER_WIDTH = CELL_SIZE * 2 + BLOCK_PAGE_TEXT_WIDTH;
-    private static final String ALIAS_NAME_KEY = "gui.mmce_advanced_builder_tool.Variable_";
+    /** Alias names are localised by the alias itself: {@code gui.mmce_advanced_builder_tool.Variable.<alias>}. */
+    private static final String ALIAS_NAME_KEY = "gui.mmce_advanced_builder_tool.Variable.";
     private static final int BUTTON_TEXT_COLOR = 0xFFFFFFFF;
 
     private final SelectionHandler handler;
@@ -147,7 +148,7 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
             for (int i = 0; i < shown; i++) {
                 String variable = names.get(start + i);
                 int pageForRow = currentPage;
-                column.child(aliasRow(variable, start + i + 1)
+                column.child(aliasRow(variable)
                         .setEnabledIf(widget -> state().expanded == null && state().aliasPage == pageForRow));
             }
         }
@@ -254,14 +255,12 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
      * One alias row: a cell in the left fifth, an empty fifth, then the name button in the right three
      * fifths. The cell and the button are separate: the cell shows the block the alias resolves to,
      * while the name button is the one that opens the alias.
-     *
-     * @param index 1 based position of the alias in the list, which is what its localisation key uses
      */
-    private Flow aliasRow(String variable, int index) {
+    private Flow aliasRow(String variable) {
         return Flow.row().widthRel(1f).height(CELL_SIZE)
                 .mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
                 .child(aliasCell(variable))
-                .child(aliasNameButton(variable, index));
+                .child(aliasNameButton(variable));
     }
 
     private Flow aliasCell(String variable) {
@@ -280,8 +279,8 @@ public final class BlockVariablePickerScreen extends CustomModularScreen {
                 .tooltipAutoUpdate(true);
     }
 
-    private ButtonWidget<?> aliasNameButton(String variable, int index) {
-        String key = ALIAS_NAME_KEY + index;
+    private ButtonWidget<?> aliasNameButton(String variable) {
+        String key = ALIAS_NAME_KEY + variable;
         String localized = I18n.translateToLocal(key);
         boolean hasLocalization = !localized.equals(key);
         String name = hasLocalization ? localized : variable;
