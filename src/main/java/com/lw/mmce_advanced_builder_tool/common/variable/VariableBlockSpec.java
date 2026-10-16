@@ -4,6 +4,7 @@ import ink.ikx.mmce.common.utils.StackUtils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
@@ -53,11 +54,12 @@ final class VariableBlockSpec {
     }
 
     ItemStack displayStack() {
-        ItemStack stack = stackFromState(state());
-        if (!stack.isEmpty()) {
-            return stack;
+        Item item = Item.getItemFromBlock(block);
+        if (item != Items.AIR) {
+            return new ItemStack(item, 1, meta);
         }
-        return new ItemStack(block, 1, meta);
+        ItemStack stack = stackFromState(state());
+        return stack.isEmpty() ? new ItemStack(block, 1, meta) : stack;
     }
 
     String describe() {

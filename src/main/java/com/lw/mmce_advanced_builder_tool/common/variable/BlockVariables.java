@@ -200,12 +200,8 @@ public final class BlockVariables {
         return true;
     }
 
-    private static BlockArray.BlockInformation replaceCandidates(BlockArray.BlockInformation original,
-                                                               VariableBlockSpec chosen) {
-        // BlockInformation caches ingredient states separately from matchingStates. Constructing a
-        // fresh instance resets both lists, otherwise the original casing remains a build candidate.
-        BlockArray.BlockInformation replacement = new BlockArray.BlockInformation(
-                Collections.singletonList(IBlockStateDescriptor.of(chosen.state())));
+    private static BlockArray.BlockInformation replaceCandidates(BlockArray.BlockInformation original, VariableBlockSpec chosen) {
+        BlockArray.BlockInformation replacement = new BlockArray.BlockInformation(Collections.singletonList(IBlockStateDescriptor.of(chosen.state())));
         replacement.setMatchingTag(original.getMatchingTag());
         replacement.setPreviewTag(original.getPreviewTag());
         replacement.setNBTChecker(original.getNBTChecker());
