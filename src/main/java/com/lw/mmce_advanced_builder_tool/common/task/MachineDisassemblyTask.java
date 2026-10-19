@@ -15,6 +15,7 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.Tuple;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
@@ -26,8 +27,10 @@ import net.minecraftforge.items.IItemHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tick-driven teardown of a machine pattern: removes the blocks a machine occupies and returns the
@@ -236,10 +239,37 @@ public class MachineDisassemblyTask implements BuildTask {
         }
 
         List<ItemStack> drops = collectBlockDrops(realPos, current, tileEntity);
+
+        AxisAlignedBB bounds = new AxisAlignedBB(realPos).grow(1.0D);
+        Set<EntityItem> existingEntities = Collections.newSetFromMap(new IdentityHashMap<EntityItem, Boolean>());
+        existingEntities.addAll(world.getEntitiesWithinAABB(EntityItem.class, bounds));
+
         if (!world.setBlockToAir(realPos)) {
             return null;
         }
+        removeBlockBreakDrops(bounds, existingEntities, drops);
         return drops;
+    }
+
+    /**
+     * Some inventory blocks drop their contents from {@code breakBlock}. Those entities are already
+     * represented by {@link #collectTileInventoryDrops(TileEntity, List)} and would otherwise be
+     * returned a second time by {@link #disassembleItemBlock(List)}.
+     */
+    private void removeBlockBreakDrops(AxisAlignedBB bounds, Set<EntityItem> existingEntities, List<ItemStack> drops) {
+        for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, bounds)) {
+            if (!existingEntities.contains(entity) && !entity.isDead && isKnownDrop(entity.getItem(), drops)) {
+                entity.setDead();
+            }
+        }
+    }
+    private boolean isKnownDrop(ItemStack entityStack, List<ItemStack> drops) {
+        for (ItemStack drop : drops) {
+            if (StructureIngredients.areItemStacksEqual(entityStack, drop)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
