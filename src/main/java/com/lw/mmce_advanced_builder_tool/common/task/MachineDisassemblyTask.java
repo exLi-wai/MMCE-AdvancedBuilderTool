@@ -5,6 +5,7 @@ import com.lw.mmce_advanced_builder_tool.common.util.MessageLimiter;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
@@ -19,11 +20,8 @@ import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.items.CapabilityItemHandler;
-import net.minecraftforge.items.IItemHandler;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,8 +34,9 @@ import java.util.Set;
  * Tick-driven teardown of a machine pattern: removes the blocks a machine occupies and returns the
  * recovered materials to the player inventory or to AE storage.
  *
- * <p>Block contents are recovered from two merged sources: the block's own drops, and - for blocks
- * that hide their contents inside a tile entity - the item-handler capability of that tile entity.
+ * <p>Block contents are recovered from the block's own drops. Blocks such as Modular Machinery's
+ * input and output buses serialize their cached item in that drop; reading the tile inventory here
+ * as a second source would return the cached item twice.
  * Removal publishes {@code BlockEvent.BreakEvent} so protection plugins can veto a position; a
  * vetoed or otherwise unremovable position is dropped from the plan instead of being retried forever.
  */
@@ -229,8 +228,6 @@ public class MachineDisassemblyTask implements BuildTask {
         if (current.getBlock() == Blocks.AIR) {
             return Collections.emptyList();
         }
-        TileEntity tileEntity = world.getTileEntity(realPos);
-
         BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(world, realPos, current, player);
         MinecraftForge.EVENT_BUS.post(event);
         if (event.isCanceled()) {
@@ -238,47 +235,70 @@ public class MachineDisassemblyTask implements BuildTask {
             return null;
         }
 
-        List<ItemStack> drops = collectBlockDrops(realPos, current, tileEntity);
+        List<ItemStack> drops = collectBlockDrops(realPos, current);
 
         AxisAlignedBB bounds = new AxisAlignedBB(realPos).grow(1.0D);
         Set<EntityItem> existingEntities = Collections.newSetFromMap(new IdentityHashMap<EntityItem, Boolean>());
         existingEntities.addAll(world.getEntitiesWithinAABB(EntityItem.class, bounds));
 
-        if (!world.setBlockToAir(realPos)) {
+        // Defer neighbour updates until the block's own drops have been reconciled. A bus can
+        // serialize its cached item into the entity spawned by breakBlock; processing updates
+        // first can produce an additional shell entity that is indistinguishable from that drop.
+        if (Blocks.AIR != null && !world.setBlockState(realPos, Blocks.AIR.getDefaultState(), 2 | 16)) {
             return null;
         }
-        removeBlockBreakDrops(bounds, existingEntities, drops);
+        removeBlockBreakDrops(bounds, existingEntities, drops, current);
+        world.notifyNeighborsRespectDebug(realPos, current.getBlock(), true);
         return drops;
     }
 
-    /**
-     * Some inventory blocks drop their contents from {@code breakBlock}. Those entities are already
-     * represented by {@link #collectTileInventoryDrops(TileEntity, List)} and would otherwise be
-     * returned a second time by {@link #disassembleItemBlock(List)}.
-     */
-    private void removeBlockBreakDrops(AxisAlignedBB bounds, Set<EntityItem> existingEntities, List<ItemStack> drops) {
+    private void removeBlockBreakDrops(AxisAlignedBB bounds, Set<EntityItem> existingEntities, List<ItemStack> drops, IBlockState brokenState) {
         for (EntityItem entity : world.getEntitiesWithinAABB(EntityItem.class, bounds)) {
-            if (!existingEntities.contains(entity) && !entity.isDead && isKnownDrop(entity.getItem(), drops)) {
+            if (existingEntities.contains(entity) || entity.isDead) {
+                continue;
+            }
+            ItemStack entityStack = entity.getItem();
+            if (isBlockItem(entityStack, brokenState)) {
+                replaceBlockDrop(drops, brokenState, entityStack);
+                entity.setDead();
+            } else if (isKnownDrop(entityStack, drops, brokenState)) {
                 entity.setDead();
             }
         }
     }
-    private boolean isKnownDrop(ItemStack entityStack, List<ItemStack> drops) {
+
+    private void replaceBlockDrop(List<ItemStack> drops, IBlockState brokenState, ItemStack spawned) {
+        for (int i = 0; i < drops.size(); i++) {
+            ItemStack drop = drops.get(i);
+            if (isBlockItem(drop, brokenState) && ItemStack.areItemsEqual(drop, spawned)) {
+                drops.set(i, spawned.copy());
+                return;
+            }
+        }
+        drops.add(spawned.copy());
+    }
+    private boolean isKnownDrop(ItemStack entityStack, List<ItemStack> drops, IBlockState brokenState) {
         for (ItemStack drop : drops) {
-            if (StructureIngredients.areItemStacksEqual(entityStack, drop)) {
+            if (StructureIngredients.areItemStacksEqual(entityStack, drop) || (isBlockItem(entityStack, brokenState) && ItemStack.areItemsEqual(entityStack, drop) && isBlockItem(drop, brokenState))) {
                 return true;
             }
         }
         return false;
     }
 
+    private boolean isBlockItem(ItemStack stack, IBlockState state) {
+        return !stack.isEmpty() && Block.getBlockFromItem(stack.getItem()) == state.getBlock();
+    }
+
     /**
      * Uses the five argument {@code getDrops} overload. The player-aware overload that Forge patches
      * into {@code Block} is deliberately not called here: it is absent from a workspace built on
      * unpatched Minecraft sources, so invoking it would not compile. The consequence is that
-     * harvest-sensitive drops (fortune, silk touch) follow the block's default metadata drops.
+     * harvest-sensitive drops (fortune, silk touch) follow the block's default metadata drops. Tile
+     * inventory contents are intentionally not appended: blocks with cached contents include them in
+     * their own drop logic.
      */
-    private List<ItemStack> collectBlockDrops(BlockPos realPos, IBlockState state, TileEntity tileEntity) {
+    private List<ItemStack> collectBlockDrops(BlockPos realPos, IBlockState state) {
         NonNullList<ItemStack> blockDrops = NonNullList.create();
         state.getBlock().getDrops(blockDrops, world, realPos, state, 0);
 
@@ -288,31 +308,7 @@ public class MachineDisassemblyTask implements BuildTask {
                 drops.add(drop.copy());
             }
         }
-        collectTileInventoryDrops(tileEntity, drops);
         return drops;
-    }
-
-    /**
-     * Blocks that keep their contents inside the tile entity (stocking buffers, drives, crates and
-     * similar) do not expose them through {@code getDrops}. Reading the inventory capability is
-     * exact, whereas inferring drops from newly spawned item entities can double-return or miss
-     * stacks. Inventory contents are additive: the shell still drops as a normal item.
-     */
-    private void collectTileInventoryDrops(TileEntity tileEntity, List<ItemStack> drops) {
-        if (!(tileEntity instanceof ICapabilityProvider)
-                || !((ICapabilityProvider) tileEntity).hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)) {
-            return;
-        }
-        IItemHandler handler = ((ICapabilityProvider) tileEntity).getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null);
-        if (handler == null) {
-            return;
-        }
-        for (int slot = 0; slot < handler.getSlots(); slot++) {
-            ItemStack stored = handler.getStackInSlot(slot);
-            if (!stored.isEmpty()) {
-                drops.add(stored.copy());
-            }
-        }
     }
 
     private void returnItem(ItemStack stack) {

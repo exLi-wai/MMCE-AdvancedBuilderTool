@@ -42,17 +42,11 @@ public final class BuilderToolService {
     private BuilderToolService() {
     }
 
-    public static void start(EntityPlayerMP player, BlockPos pos, boolean useAeItems, boolean useAeFluids,
-                             boolean craftMissing, boolean disassembleMode, int dynamicLength,
-                             int tickInterval, int operationsPerTick) {
-        start(player, pos, useAeItems, useAeFluids, craftMissing, disassembleMode, dynamicLength,
-                "", false, tickInterval, operationsPerTick);
+    public static void start(EntityPlayerMP player, BlockPos pos, boolean useAeItems, boolean useAeFluids, boolean craftMissing, boolean disassembleMode, int dynamicLength, int tickInterval, int operationsPerTick) {
+        start(player, pos, useAeItems, useAeFluids, craftMissing, disassembleMode, dynamicLength, "", false, tickInterval, operationsPerTick);
     }
 
-    public static void start(EntityPlayerMP player, BlockPos pos, boolean useAeItems, boolean useAeFluids,
-                             boolean craftMissing, boolean disassembleMode, int dynamicLength,
-                             String attachmentModule, boolean skipExistingBlocks,
-                             int tickInterval, int operationsPerTick) {
+    public static void start(EntityPlayerMP player, BlockPos pos, boolean useAeItems, boolean useAeFluids, boolean craftMissing, boolean disassembleMode, int dynamicLength, String attachmentModule, boolean skipExistingBlocks, int tickInterval, int operationsPerTick) {
         World world = player.world;
         TileEntity tile = world.getTileEntity(pos);
         Block block = world.getBlockState(pos).getBlock();
@@ -88,14 +82,18 @@ public final class BuilderToolService {
         if (!buildingAttachment) {
             StructureIngredients.appendDynamicPatterns(machine, machinePattern, controllerFacing, dynamicLength);
         }
-        applyVariableSelections(player, machinePattern);
 
         if (disassembleMode) {
+            // Variable picks describe which alias member to place during assembly. During
+            // disassembly the machine may contain any member of the alias, so keep the complete
+            // candidate list or selecting one bus type would make the other bus types unremovable.
             DisassemblyPlan.Plan plan = StructureIngredients.createDisassemblyPlan(machinePattern);
             BuildTaskScheduler.addTask(new MachineDisassemblyTask(world, pos, player, plan, useAeItems, useAeFluids, tickInterval, operationsPerTick));
             StructureIngredients.sendTranslation(player, "message.mmce_advanced_builder_tool.disassembly_started");
             return;
         }
+
+        applyVariableSelections(player, machinePattern);
 
         if (skipExistingBlocks) {
             Iterator<Map.Entry<BlockPos, BlockArray.BlockInformation>> entries = machinePattern.getPattern().entrySet().iterator();
