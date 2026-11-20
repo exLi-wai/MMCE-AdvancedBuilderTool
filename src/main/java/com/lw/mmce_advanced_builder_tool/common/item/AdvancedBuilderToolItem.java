@@ -216,8 +216,11 @@ public class AdvancedBuilderToolItem extends Item implements IGuiHolder<GuiData>
      * when the panel was built. The server rejects config packets whose slot no longer holds a
      * builder, so reading the live slot keeps both sides on the same authoritative NBT: a moved or
      * dropped tool makes the controls fall back to defaults rather than writing to a stale copy.
+     *
+     * <p>Deliberately not client only: ModularUI also builds this panel on the server, to register
+     * the sync handlers, and FML strips {@code @SideOnly(CLIENT)} methods from a dedicated server,
+     * which made that build fail with a {@code NoSuchMethodError}.
      */
-    @SideOnly(Side.CLIENT)
     private static ItemStack currentStack(PlayerInventoryGuiData data) {
         EntityPlayer player = data.getPlayer();
         int slot = data.getSlotIndex();

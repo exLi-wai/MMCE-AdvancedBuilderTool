@@ -12,6 +12,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -95,6 +97,12 @@ public final class GhostBlockSlot extends ButtonWidget<GhostBlockSlot> implement
         return true;
     }
 
+    /**
+     * Client only: {@link Minecraft} and its {@code EntityPlayerSP} player field are refused by
+     * FML's side transformer on a dedicated server, and this widget class is also instantiated while
+     * ModularUI builds the panel there.
+     */
+    @SideOnly(Side.CLIENT)
     private static ItemStack offeredStack() {
         EntityPlayer player = Minecraft.getMinecraft().player;
         if (player == null) {
