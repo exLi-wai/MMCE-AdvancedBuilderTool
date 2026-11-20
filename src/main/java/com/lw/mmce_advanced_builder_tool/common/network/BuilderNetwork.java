@@ -7,7 +7,9 @@ import net.minecraftforge.fml.relauncher.Side;
 
 public final class BuilderNetwork {
 
-    public static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel(Tags.MOD_ID);
+    private static final String CHANNEL_NAME = "mmce_adv_builder";
+
+    public static final SimpleNetworkWrapper CHANNEL = NetworkRegistry.INSTANCE.newSimpleChannel(CHANNEL_NAME);
 
     private static int packetId = 0;
 
