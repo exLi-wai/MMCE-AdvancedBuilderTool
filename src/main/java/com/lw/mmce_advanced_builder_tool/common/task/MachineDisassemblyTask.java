@@ -1,11 +1,13 @@
 package com.lw.mmce_advanced_builder_tool.common.task;
 
+import com.lw.mmce_advanced_builder_tool.MMCEAdvancedBuilderTool;
 import com.lw.mmce_advanced_builder_tool.common.ae2.Ae2GridAccess;
 import com.lw.mmce_advanced_builder_tool.common.util.MessageLimiter;
 import com.lw.mmce_advanced_builder_tool.common.util.Mods;
 import com.lw.mmce_advanced_builder_tool.common.util.StructureIngredients;
 import hellfirepvp.modularmachinery.common.tiles.base.TileMultiblockMachineController;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockLeaves;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
@@ -300,7 +302,18 @@ public class MachineDisassemblyTask implements BuildTask {
      */
     private List<ItemStack> collectBlockDrops(BlockPos realPos, IBlockState state) {
         NonNullList<ItemStack> blockDrops = NonNullList.create();
-        state.getBlock().getDrops(blockDrops, world, realPos, state, 0);
+        Block block = state.getBlock();
+        try {
+            block.getDrops(blockDrops, world, realPos, state, 0);
+        } catch (IllegalArgumentException e) {
+            if (!(block instanceof BlockLeaves)) {
+                throw e;
+            }
+            // Some modded leaves supply an invalid random bound. Discard partial drops so
+            // disassembly can return the matched leaf item after the block is removed.
+            MMCEAdvancedBuilderTool.LOGGER.debug("Failed to collect drops for leaves {} at {}", block.getRegistryName(), realPos, e);
+            blockDrops.clear();
+        }
 
         List<ItemStack> drops = new ArrayList<>();
         for (ItemStack drop : blockDrops) {
